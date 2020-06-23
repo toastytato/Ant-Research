@@ -8,11 +8,6 @@ class CalculatePCA:
         self.m = np.array([0, 0])  # global mean
         self.e = np.array([0, 0])  # global eigenvector
 
-        # scaling of rectangle
-        # probably change later on
-        self.primScale = 80
-        self.secScale = 40
-
         self.prev_position = np.array([0, 0])
         self.prev_time = 0.0
         self.skip = 0
@@ -46,11 +41,9 @@ class CalculatePCA:
 
         return angle * 360 / (2 * 3.1415)  # angle in degrees
 
-    def get_rectangle(self):
+    def get_rectangle(self, prim_scale, sec_scale):
         m = self.m
         e = self.e
-        prim_scale = self.primScale
-        sec_scale = self.secScale
 
         # rectangle points
         rectangle = np.array([tuple(m[0] + e[0] * prim_scale + e[1] * sec_scale),
@@ -78,18 +71,18 @@ class CalculatePCA:
 
 
 class VideoCapture(CalculatePCA):
-    def __init__(self, source=0):
+    def __init__(self, source, framerate):
         super().__init__()
         self.vid = cv2.VideoCapture(source)
         self.frame = None
         self.mask = None
-        self.cnts = 0
+        self.cnts = []
 
         self.width = self.vid.get(cv2.CAP_PROP_FRAME_WIDTH)
         self.height = self.vid.get(cv2.CAP_PROP_FRAME_HEIGHT)
 
         fourcc = cv2.VideoWriter_fourcc(*'XVID')
-        self.save_video = cv2.VideoWriter('output.avi', fourcc, 20.0, (int(self.width), int(self.height)))
+        self.save_video = cv2.VideoWriter('output.avi', fourcc, framerate, (int(self.width), int(self.height)))
 
         self.color_low = 0, 0, 0
         self.color_high = 255, 255, 255
@@ -135,11 +128,8 @@ class VideoCapture(CalculatePCA):
             # gui.set_velocity(np.linalg.norm(v[1] - v[0]))  # velocity magnitude
 
             cv2.arrowedLine(self.frame, tuple(v[0]), tuple(v[1]), red, 2)
-            cv2.polylines(self.frame, [super().get_rectangle()], 1, red, 2)
+            cv2.polylines(self.frame, [super().get_rectangle(40, 40)], 1, red, 2)
             cv2.drawContours(self.mask, [c], -1, (0, 255, 0), 1)
-
-    def get_video_info(self):
-        return self.width, self.height
 
     def has_track(self):
         if len(self.cnts) > 0:
@@ -160,8 +150,6 @@ class VideoCapture(CalculatePCA):
 
             else:
                 return ret, None
-        else:
-            return None
 
     def stop_record(self):
         self.save_video.release()

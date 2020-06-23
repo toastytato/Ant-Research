@@ -1,15 +1,11 @@
 import tkinter as tk
 import numpy as np
 from configparser import ConfigParser
+import json
 from PIL import ImageTk, Image
 import matplotlib.pyplot as plt
-import matplotlib.animation as animation
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from ant_tracker import camera
-import yaml
-import os
-
-filename = r'..\data\config2.yml'
 
 
 class TrackerApplication(tk.Frame):
@@ -20,8 +16,9 @@ class TrackerApplication(tk.Frame):
         self.bg_color = "white"
         self.configure(background=self.bg_color)
 
-        self.stream = camera.VideoCapture(1)
-        self.delay = int(1000 / 30)
+        framerate = 30
+        self.stream = camera.VideoCapture(1, framerate)
+        self.delay = int(1000 / framerate)
 
         self.ctrlFrame = ControllerWindow(self, self.stream)
         self.ctrlFrame.pack(side="right")
@@ -46,10 +43,10 @@ class TrackerApplication(tk.Frame):
 
 
 class ControllerWindow(tk.Frame):
-    def __init__(self, parent, video):
+    def __init__(self, parent, stream):
         tk.Frame.__init__(self, parent)
         self.parent = parent
-        self.vid = video
+        self.vid = stream
         self.frames_cnt = 0
 
         self.config_path = r'..\data\config.ini'
@@ -61,8 +58,8 @@ class ControllerWindow(tk.Frame):
         self.slidersFrame.pack(side="top")
         self.slidersFrame.configure(background=self.parent.bg_color)
 
-        # create the GUI for changing HSV values
-        self.slider_names = ['low_h', 'high_h', 'low_s', 'high_s', 'low_v', 'high_v', ]
+        # create the GUI for changing HSV mask ranges
+        self.slider_names = ['low_h', 'high_h', 'low_s', 'high_s', 'low_v', 'high_v']
         self.sliders = [tk.Scale(self.slidersFrame, from_=0, to=255) for i in range(6)]
         for i in range(6):
             self.sliders[i].set(int(self.config.get('HSV', self.slider_names[i])))
@@ -71,10 +68,12 @@ class ControllerWindow(tk.Frame):
 
         self.quitButton = tk.Button(self, text="Save Settings and Exit", command=self.parent.quit_)
         self.quitButton.pack(side="bottom", padx=5, pady=5)
+        # self.quitButton.configure(background="skyblue")
 
         # graph related initializations
-        self.xar = []
-        self.yar = []
+        self.graph_animate_period = 1   # number of frames for each graph update
+        self.x_axis = []
+        self.y_axis = []
         self.fig = plt.figure(figsize=(3, 3))
         self.ax1 = self.fig.add_subplot(111)
         self.graph = FigureCanvasTkAgg(self.fig, master=self)
@@ -84,29 +83,26 @@ class ControllerWindow(tk.Frame):
         color_low = tuple(self.sliders[i].get() for i in range(0, 6) if i % 2 == 0)
         color_high = tuple(self.sliders[i].get() for i in range(0, 6) if i % 2 == 1)
         self.vid.set_mask_ranges(color_low, color_high)
-        graph_animate_period = 3  # number of frames for each graph update
 
         self.frames_cnt += 1
         # call animate graph function using animate period and check if there is a lock on an object
-        if self.frames_cnt % graph_animate_period == 0 and self.vid.has_track():
+        if self.frames_cnt % self.graph_animate_period == 0 and self.vid.has_track():
             self.animate(self.frames_cnt)
 
     # TODO: make the type of graph selectable
     def animate(self, i):
         y = self.vid.get_angle()
-        # w = self.vid.width
-        self.xar.append(int(i))
-        self.yar.append(int(y))
-        window = 20
-        if len(self.xar) > window:
-            self.xar.pop(0)
-            self.yar.pop(0)
+        self.x_axis.append(int(i))
+        self.y_axis.append(int(y))
+        if len(self.x_axis) > 20:   # window of values for graph
+            self.x_axis.pop(0)
+            self.y_axis.pop(0)
         self.ax1.clear()
-        self.ax1.set_title('Angle over time')
+        self.ax1.set_title('Angle vs Time')
         self.ax1.set_ylabel('angle')
         self.ax1.set_xlabel('frames')
         self.ax1.set_ylim([0, 180])
-        self.ax1.plot(self.xar, self.yar)
+        self.ax1.plot(self.x_axis, self.y_axis)
         self.fig.tight_layout()
         self.graph.draw()
 
@@ -173,6 +169,7 @@ class VideoWindow(tk.Frame):
 
     def quit_(self):
         self.vid.stop_record()
+        self.is_recording = False
 
 
 if __name__ == '__main__':
