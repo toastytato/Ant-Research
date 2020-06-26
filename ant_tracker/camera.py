@@ -30,11 +30,21 @@ class CalculatePCA:
         # and eigenvectors (e. g. directions of principal components)
         self.m, self.e = cv2.PCACompute(mat, mean=np.array([]))
 
+    def get_position(self):
+        try:
+            return self.m[0][0], self.m[0][1]
+        except IndexError:
+            return -1
+
     def get_angle(self):
         v_vector = (0, 1)  # vertical vector
 
+        try:
+            unit_vector_1 = (self.e[0]) / np.linalg.norm(self.e[0])
+        except RuntimeWarning:
+            return -1
+
         # getting angle relative to vertical axis
-        unit_vector_1 = (self.e[0]) / np.linalg.norm(self.e[0])
         unit_vector_2 = v_vector / np.linalg.norm(v_vector)
         dot_product = np.dot(unit_vector_1, unit_vector_2)
         angle = np.arccos(dot_product)  # angle in radians
