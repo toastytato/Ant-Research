@@ -1,8 +1,9 @@
 import tkinter as tk
 from tkinter import ttk
+from tkinter import filedialog
+import pandas as pd
 import numpy as np
 from configparser import ConfigParser
-import json
 from PIL import ImageTk, Image
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
@@ -25,15 +26,15 @@ class TrackerApplication(tk.Frame):
 
         self.data_log = data_handler.DataLog()
 
-        self.vidFrame = VideoWindow(self, self.stream, self.bg_color)
+        self.vidFrame = VideoFrame(self, self.stream, self.data_log)
         self.vidFrame.grid(row=0, column=0, sticky='nsew')
         self.vidFrame.configure(background=self.bg_color)
 
-        self.ctrlFrame = ControllerWindow(self, self.stream, self.data_log, self.quit_)
+        self.ctrlFrame = ControllerFrame(self, self.stream, self.data_log)
         self.ctrlFrame.grid(row=0, column=1, rowspan=2, sticky='nsew')
         self.ctrlFrame.configure(background=self.bg_color)
 
-        self.navFrame = NavigationWindow(self, self.data_log)
+        self.navFrame = NavigationFrame(self, self.data_log)
         self.navFrame.grid(row=1, column=0, sticky='nsew')
         self.navFrame.configure(background=self.bg_color)
 
@@ -51,15 +52,18 @@ class TrackerApplication(tk.Frame):
         self.ctrlFrame.update_()
         self.master.after(self.delay, self.update_)
 
+    def refresh_files(self, date):
+        self.navFrame.on_date_select(date, True)
+        self.navFrame.refresh_dates()
+
     def quit_(self):
         self.ctrlFrame.save_settings()
-        self.ctrlFrame.save_log()
         self.vidFrame.quit_()
         self.quit()
 
 
-class ControllerWindow(tk.Frame):
-    def __init__(self, parent, stream, data_log, quit_all):
+class ControllerFrame(tk.Frame):
+    def __init__(self, parent, stream, data_log):
         tk.Frame.__init__(self, parent)
         self.parent = parent
         self.bg_color = 'white'
@@ -91,18 +95,14 @@ class ControllerWindow(tk.Frame):
         for i in range(len(self.graph_names)):
             self.graphs.append(Graph(self, self.graph_names[i]))
             self.graph_tabs.add(self.graphs[i], text=self.graph_names[i])
-        self.graph_tabs.grid(row=1, column=0, columnspan=2, sticky=tk.NS)
+        self.graph_tabs.grid(row=1, column=0, sticky=tk.NS)
 
         self.log = data_log
         self.log_rate = 12
         self.is_logging = False
-        self.log_text = tk.StringVar()
-        self.log_text.set('Start Log')
-        self.saveButton = tk.Button(self, textvariable=self.log_text, command=self.save_log)
-        self.saveButton.grid(row=2, column=0)
 
-        self.quitButton = tk.Button(self, text="Exit", command=quit_all)
-        self.quitButton.grid(row=2, column=1)
+        self.quitButton = tk.Button(self, text="Exit", command=parent.quit_)
+        self.quitButton.grid(row=2, column=0)
 
         self.grid_rowconfigure(2, weight=1)
 
@@ -118,7 +118,7 @@ class ControllerWindow(tk.Frame):
                 self.graphs[i].update_(self.frames_cnt)
                 if self.graph_tabs.index(self.graph_tabs.select()) == i:
                     self.graphs[i].animate()
-        if self.frames_cnt % self.frames_cnt == 0 and self.is_logging:
+        if self.frames_cnt % self.frames_cnt == 0 and self.parent.vidFrame.is_recording:
             if self.vid.has_track():
                 self.log.append_values(self.vid.get_position(), self.vid.get_angle())
             else:
@@ -130,17 +130,6 @@ class ControllerWindow(tk.Frame):
 
         with open(self.config_path, 'w') as f:
             self.config.write(f)
-
-    # TODO: Create dialog window for the user to input notes
-    def save_log(self):
-        if self.is_logging:
-            self.log.save_entry('yeeter')
-            self.log.print_entry()
-            self.is_logging = False
-            self.log_text.set('Start Log')
-        else:
-            self.is_logging = True
-            self.log_text.set('Stop and Save Log')
 
 
 class Graph(tk.Frame):
@@ -176,7 +165,7 @@ class Graph(tk.Frame):
         self.graph.draw()
 
 
-class NavigationWindow(tk.Frame):
+class NavigationFrame(tk.Frame):
     def __init__(self, parent, data_log):
         tk.Frame.__init__(self, parent)
 
@@ -186,7 +175,6 @@ class NavigationWindow(tk.Frame):
 
         self.sel_date = ''
         self.date_tab = FileScrollTab(self, 'Date')
-        self.date_tab.update_list(self.date_list)
         self.date_tab.grid(row=0, column=0, sticky=tk.W + tk.NS, padx=(5, 0), pady=(0, 5))
 
         self.sel_entry = ''
@@ -198,14 +186,20 @@ class NavigationWindow(tk.Frame):
         self.details_tab = tk.Text(self.details_frame, height=5, width=50, state='disabled')
         self.details_tab.grid(sticky='nsew', padx=10, pady=10)
 
+        # update list once all the objects have been created
+        self.date_tab.update_list(self.date_list)
+
         self.actions_frame = tk.LabelFrame(self, text='Actions')
         self.actions_frame.grid(row=0, column=3, sticky='nsew', padx=(5, 0), pady=(0, 5))
         self.can_edit = False
-        self.edit_text = tk.StringVar()
-        self.edit_text.set('Edit Details')
-        self.edit_button = tk.Button(self.actions_frame, textvariable=self.edit_text, command=self.edit_button_event)
+        self.edit_button_text = tk.StringVar()
+        self.edit_button_text.set('Edit Details')
+        self.edit_button = tk.Button(self.actions_frame, textvariable=self.edit_button_text,
+                                     command=self.edit_button_event)
         self.edit_button.grid(padx=25, pady=5)
-        self.excel_button = tk.Button(self.actions_frame, text='Export to Excel', command=self.edit_button_event)
+        self.video_button = tk.Button(self.actions_frame, text='View Clip', command=self.video_button_event)
+        self.video_button.grid(padx=25, pady=5)
+        self.excel_button = tk.Button(self.actions_frame, text='Export to Excel', command=self.export_excel_event)
         self.excel_button.grid(padx=25, pady=5)
         self.del_button = tk.Button(self.actions_frame, text='Delete Entry', command=self.del_button_event)
         self.del_button.grid(padx=25, pady=5)
@@ -216,35 +210,56 @@ class NavigationWindow(tk.Frame):
 
     def edit_button_event(self):
         if self.can_edit:
+            # save edit
             self.can_edit = False
-            self.edit_text.set('Edit Details')
+            self.edit_button_text.set('Edit Details')
             self.details_tab.configure(state='disabled')
-            note = self.details_tab.get('1.0', tk.END)
+            note = self.details_tab.get('1.0', 'end')
             self.data_log.edit_notes(note, self.sel_date, self.sel_entry)
         else:
+            # start edit
             self.can_edit = True
             self.details_tab.configure(state='normal')
-            self.edit_text.set('Save Details')
+            self.edit_button_text.set('Save Details')
 
-    @staticmethod
     def export_excel_event(self):
-        print('hi')
+        print('will happen eventually')
+        # excel_entry = {}
+        # full_entry = self.data_log.get_entry(self.sel_date, self.sel_entry)
+        # excel_entry['x'] = full_entry['x']
+        # excel_entry['y'] = full_entry['y']
+        # excel_entry['angle'] = full_entry['angle']
+        #
+        # df = pd.DataFrame(excel_entry, columns=['x', 'y', 'angle'])
+        #
+        # export_file_path = filedialog.asksaveasfilename(defaultextension='.xlsx')
+        # df.to_excel(export_file_path, index=False, header=True)
+
+    def video_button_event(self):
+        DetailEditWindow(self)
+        print('video is playing')
 
     def del_button_event(self):
-        self.data_log.del_entry(self.sel_date, self.sel_entry)
-        self.refresh_entries()
+        deleted = self.data_log.del_entry(self.sel_date, self.sel_entry)
+        if deleted == 1:  # deletion was successful
+            self.refresh_dates()
+            self.refresh_entries()
+            self.entry_tab.set_last_selection()
 
-    def on_date_select(self, date):
+    def on_date_select(self, date, setlast=False):
         self.sel_date = date
+        self.sel_entry = ''     # no entry is date box is active
         entries = self.data_log.get_entries(self.sel_date)
         self.entry_tab.update_list(entries)
+        if setlast:
+            self.entry_tab.set_last_selection()
 
     def on_entry_select(self, entry):
         self.sel_entry = entry
         print(entry)
-        detail = self.data_log.get_data(self.sel_date, self.sel_entry)['notes']
+        detail = self.data_log.get_entry(self.sel_date, self.sel_entry)['notes']
         self.details_tab.configure(state='normal')
-        self.details_tab.delete('1.0', tk.END)
+        self.details_tab.delete('1.0', 'end')
         self.details_tab.insert('end', detail)
         self.details_tab.configure(state='disabled')
 
@@ -271,6 +286,7 @@ class FileScrollTab(tk.Frame):
         self.file_list.bind('<<ListboxSelect>>', self.on_selection)
         scroll_bar.config(command=self.file_list.yview)
         self.file_list.config(yscrollcommand=scroll_bar.set)
+        self.file_list.configure(justify='center')
         self.file_list.grid(row=1, column=0)
 
     def on_selection(self, event):
@@ -285,13 +301,25 @@ class FileScrollTab(tk.Frame):
     def update_list(self, curr_list):
         self.file_list.delete(0, 'end')
         for i in range(len(curr_list)):
-            self.file_list.insert(tk.END, curr_list[i])
+            self.file_list.insert('end', curr_list[i])
+
+    def set_last_selection(self):
+        self.file_list.select_set('end')
+        self.file_list.event_generate("<<ListboxSelect>>")
+
+class ViewClipWindow(tk.Toplevel):
+    def __init__(self, parent):
+        tk.Toplevel.__init__(self, parent)
+        label = tk.Label(self, text='Viewing Clip')
+        label.pack()
 
 
-class VideoWindow(tk.Frame):
-    def __init__(self, parent, video, bg_color=''):
+class VideoFrame(tk.Frame):
+    def __init__(self, parent, video, log):
         tk.Frame.__init__(self, parent)
+        self.parent = parent
         self.vid = video
+        self.log = log
         self.is_recording = False
 
         self.topFrame = tk.LabelFrame(self)
@@ -306,22 +334,43 @@ class VideoWindow(tk.Frame):
         self.rightVideo = tk.Label(self.topFrame)
         self.rightVideo.pack(side="right")
 
+        self.video_name = ''
         self.record_text = tk.StringVar()
         self.record_text.set("Record")
         self.recordButton = tk.Button(self.bottomFrame, textvariable=self.record_text, command=self.record)
         self.recordButton.pack(side="bottom", fill="both")
 
-    # TODO: make it appropriately titled
     def record(self):
-        if not self.is_recording:
-            self.is_recording = True
-            self.record_text.set("Recording (Click again to stop)")
-            print('is recording')
-        else:
-            self.is_recording = False
+        if self.is_recording:
             self.vid.stop_record()
             self.record_text.set("Record")
             print('stopped recording')
+            DetailEditWindow(self)
+            self.vid.stop_record()
+            self.is_recording = False
+
+        else:
+            self.vid.start_record('output')
+            self.record_text.set("Recording (Click again to stop)")
+            print('is recording')
+            
+            date = datetime.today().strftime('%m-%d-%Y')
+            date_key = datetime.today().strftime('%m/%d/%Y')
+            try:
+                suffix = str(len(self.log.get_entries(date_key)))
+            except TypeError:
+                suffix = '0'
+                print('first entry for today')
+
+            self.video_name = date + '-' + suffix
+            self.vid.start_record(self.video_name)
+            self.is_recording = True
+
+    def on_save_event(self, notes):
+        date_key, _ = self.log.save_entry(note=notes, url=self.video_name)
+        self.log.print_entry()
+        self.parent.refresh_files(date_key)
+        self.parent.navFrame.refresh_dates()
 
     def update_(self):
         if self.is_recording:
@@ -342,11 +391,39 @@ class VideoWindow(tk.Frame):
             self.rightVideo.configure(image=frame2)
 
     def quit_(self):
-        self.vid.stop_record()
-        self.is_recording = False
+        if self.is_recording:
+            self.vid.stop_record()
+            self.is_recording = False
+
+
+class DetailEditWindow(tk.Toplevel):
+    def __init__(self, parent):
+        tk.Toplevel.__init__(self, parent)
+        self.parent = parent
+        label = tk.Label(self, text='Log Details')
+        label.grid(row=0, columnspan=2)
+
+        self.textbox = tk.Text(self, height=6, width=40)
+        self.textbox.grid(row=1, columnspan=2, padx=10, pady=5)
+
+        save_button = tk.Button(self, text='Save', command=self.save_btn_event)
+        save_button.grid(row=2, column=0, pady=5)
+
+        discard_button = tk.Button(self, text='Discard', command=self.discard_btn_event)
+        discard_button.grid(row=2, column=1, pady=5)
+
+    def save_btn_event(self):
+        note = self.textbox.get('1.0', 'end')
+        self.parent.on_save_event(note)
+        print('saved')
+        self.destroy()
+
+    def discard_btn_event(self):
+        print('discarded')
+        self.destroy()
 
 
 if __name__ == '__main__':
     root = tk.Tk()
-    app = TrackerApplication(root).pack()
+    app = TrackerApplication(root).grid()
     root.mainloop()

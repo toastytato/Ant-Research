@@ -8,11 +8,12 @@ class DataLog:
         # try to read file
         # if empty, initiate log array
         self.data = {}
-        self.entry = {}
-        self.note = "yafjals;dfja;ldf"
+        self.note = ''
+        self.url = ''
         self.x = []
         self.y = []
         self.angle = []
+        self.entry = {}
 
         self.json_path = r'..\data\data_logs.json'
 
@@ -24,16 +25,18 @@ class DataLog:
                 with open(self.json_path, "w") as write_file:
                     json.dump(self.data, write_file)  # put the empty dictionary into the file
 
-    def save_entry(self, note):
+    # returns the date and time it was saved to
+    def save_entry(self, note='', url=''):
         self.note = note
+        self.url = url
         now = datetime.now()
         date_key = now.strftime('%m/%d/%Y')
         time_key = now.strftime('%H:%M:%S')
-        self.entry = {'notes': self.note,
-                      'x': str(self.x),
-                      'y': str(self.y),
-                      'angle': str(self.angle),
-                      'url': 'test'}
+        self.entry['notes'] = self.note
+        self.entry['x'] = str(self.x)
+        self.entry['y'] = str(self.y)
+        self.entry['angle'] = str(self.angle)
+        self.entry['url'] = self.url
         # reset data arrays after it has been added to entry
         self.x = []
         self.y = []
@@ -49,6 +52,8 @@ class DataLog:
 
         print('entry added')
 
+        return date_key, time_key
+
     def append_values(self, pos, angle):
         self.x.append(pos[0])
         self.y.append(pos[1])
@@ -61,10 +66,16 @@ class DataLog:
         return list(self.data.keys())
 
     def get_entries(self, date):
-        return list(self.data[date].keys())
+        try:
+            return list(self.data[date].keys())
+        except KeyError:
+            return -1
 
-    def get_data(self, date, entry):
-        return self.data[date][entry]
+    def get_entry(self, date, entry):
+        try:
+            return self.data[date][entry]
+        except KeyError:
+            return -1
 
     def edit_notes(self, note, date, entry):
         self.data[date][entry]['notes'] = note
@@ -72,9 +83,15 @@ class DataLog:
             json.dump(self.data, write_file)
 
     def del_entry(self, date, entry):
-        self.data[date].pop(entry)
+        try:
+            self.data[date].pop(entry)
+        except KeyError:
+            print('nothing selected')
+            return -1
+
         if len(self.data[date]) == 0:
             self.data.pop(date)
+
         with open(self.json_path, "w") as write_file:
             json.dump(self.data, write_file)
-
+        return 1

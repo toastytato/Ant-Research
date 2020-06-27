@@ -88,11 +88,10 @@ class VideoCapture(CalculatePCA):
         self.mask = None
         self.cnts = []
 
+        self.save_video = None
+        self.framerate = framerate
         self.width = self.vid.get(cv2.CAP_PROP_FRAME_WIDTH)
         self.height = self.vid.get(cv2.CAP_PROP_FRAME_HEIGHT)
-
-        fourcc = cv2.VideoWriter_fourcc(*'XVID')
-        self.save_video = cv2.VideoWriter('output.avi', fourcc, framerate, (int(self.width), int(self.height)))
 
         self.color_low = 0, 0, 0
         self.color_high = 255, 255, 255
@@ -160,6 +159,12 @@ class VideoCapture(CalculatePCA):
 
             else:
                 return ret, None
+
+    def start_record(self, video_name):
+        fourcc = cv2.VideoWriter_fourcc(*'XVID')
+        video_name = r'..\\clips\\' + video_name + '.avi'
+        self.save_video = cv2.VideoWriter(video_name, fourcc, self.framerate,
+                                          (int(self.width), int(self.height)))
 
     def stop_record(self):
         self.save_video.release()
