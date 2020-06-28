@@ -176,3 +176,20 @@ class VideoCapture(CalculatePCA):
     def __del__(self):
         if self.vid.isOpened():
             self.vid.release()
+
+
+class VideoPlayback:
+    def __init__(self, name):
+        url = r'..\\clips\\' + name + '.avi'
+        self.cap = cv2.VideoCapture(url)
+
+    def get_frame(self):
+        if self.cap.isOpened():
+            ret, frame = self.cap.read()
+            if ret:
+                frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            return ret, frame
+
+
+if __name__ == '__main__':
+    print('scooby dooby doo')

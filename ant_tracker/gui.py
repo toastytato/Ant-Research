@@ -1,8 +1,6 @@
 import tkinter as tk
 from tkinter import ttk
-from tkinter import filedialog
-import pandas as pd
-import numpy as np
+import os
 from configparser import ConfigParser
 from PIL import ImageTk, Image
 import matplotlib.pyplot as plt
@@ -236,7 +234,8 @@ class NavigationFrame(tk.Frame):
         # df.to_excel(export_file_path, index=False, header=True)
 
     def video_button_event(self):
-        DetailEditWindow(self)
+        url = self.data_log.get_entry(self.sel_date, self.sel_entry)['url']
+        ViewClipWindow(self, url)
         print('video is playing')
 
     def del_button_event(self):
@@ -307,11 +306,27 @@ class FileScrollTab(tk.Frame):
         self.file_list.select_set('end')
         self.file_list.event_generate("<<ListboxSelect>>")
 
+
 class ViewClipWindow(tk.Toplevel):
-    def __init__(self, parent):
+    def __init__(self, parent, name):
         tk.Toplevel.__init__(self, parent)
-        label = tk.Label(self, text='Viewing Clip')
-        label.pack()
+        self.vidFrame = tk.Label(self, text='Viewing Clip')
+        self.vidFrame.pack()
+        self.video = camera.VideoPlayback(name)
+        self.delay = int(1000/24)
+        self.refresh()
+
+    def refresh(self):
+        ret, frame = self.video.get_frame()
+        if ret:
+            frame = Image.fromarray(frame)
+            frame = ImageTk.PhotoImage(image=frame)
+            self.vidFrame.img = frame
+            self.vidFrame.configure(image=frame)
+            self.master.after(self.delay, self.refresh)
+        else:
+            print('Video Done')
+            self.destroy()
 
 
 class VideoFrame(tk.Frame):

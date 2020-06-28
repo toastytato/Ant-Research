@@ -1,5 +1,7 @@
 import json
 from datetime import datetime
+import pandas as pd
+
 
 
 # TODO: access previous entries in GUI, export to Excel
@@ -26,7 +28,7 @@ class DataLog:
                     json.dump(self.data, write_file)  # put the empty dictionary into the file
 
     # returns the date and time it was saved to
-    def save_entry(self, note='', url=''):
+    def save_entry(self, note, url):
         self.note = note
         self.url = url
         now = datetime.now()
@@ -95,3 +97,8 @@ class DataLog:
         with open(self.json_path, "w") as write_file:
             json.dump(self.data, write_file)
         return 1
+
+
+class ExcelExport:
+    def __init__(self, name):
+        print('oop')
