@@ -1,10 +1,10 @@
 import json
 from datetime import datetime
 import pandas as pd
+import os
 
 
-
-# TODO: access previous entries in GUI, export to Excel
+# TODO: export to Excel
 class DataLog:
     def __init__(self):
         # try to read file
@@ -71,13 +71,13 @@ class DataLog:
         try:
             return list(self.data[date].keys())
         except KeyError:
-            return -1
+            return False
 
     def get_entry(self, date, entry):
         try:
             return self.data[date][entry]
         except KeyError:
-            return -1
+            return False
 
     def edit_notes(self, note, date, entry):
         self.data[date][entry]['notes'] = note
@@ -86,17 +86,21 @@ class DataLog:
 
     def del_entry(self, date, entry):
         try:
-            self.data[date].pop(entry)
+            popped = self.data[date].pop(entry)
         except KeyError:
             print('nothing selected')
-            return -1
+            return False
+
+        name = popped['url']
+        video_url = r'..\\clips\\' + name + '.avi'
+        # os.remove(video_url)
 
         if len(self.data[date]) == 0:
             self.data.pop(date)
 
         with open(self.json_path, "w") as write_file:
             json.dump(self.data, write_file)
-        return 1
+        return True
 
 
 class ExcelExport:

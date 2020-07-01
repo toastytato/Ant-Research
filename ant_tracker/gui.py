@@ -1,6 +1,6 @@
 import tkinter as tk
 from tkinter import ttk
-import os
+import pandas as pd
 from configparser import ConfigParser
 from PIL import ImageTk, Image
 import matplotlib.pyplot as plt
@@ -15,11 +15,12 @@ class TrackerApplication(tk.Frame):
         tk.Frame.__init__(self, parent)
         self.master = parent
         self.master.title("Ant tracking interface")
-        self.bg_color = "white"
+        self.bg_color = "SystemButtonFace"  # default color
         self.configure(background=self.bg_color)
 
         framerate = 30
-        self.stream = camera.VideoCapture(1, framerate)
+        ant_url = r'..\\data\\antvideo.mp4'
+        self.stream = camera.VideoCapture(ant_url, framerate)
         self.delay = int(1000 / framerate)
 
         self.data_log = data_handler.DataLog()
@@ -61,10 +62,10 @@ class TrackerApplication(tk.Frame):
 
 
 class ControllerFrame(tk.Frame):
-    def __init__(self, parent, stream, data_log):
+    def __init__(self, parent, stream, data_log, bgcolor='SystemButtonFace'):
         tk.Frame.__init__(self, parent)
         self.parent = parent
-        self.bg_color = 'white'
+        self.bg_color = bgcolor
         self.vid = stream
         self.frames_cnt = 0
 
@@ -118,7 +119,7 @@ class ControllerFrame(tk.Frame):
                     self.graphs[i].animate()
         if self.frames_cnt % self.frames_cnt == 0 and self.parent.vidFrame.is_recording:
             if self.vid.has_track():
-                self.log.append_values(self.vid.get_position(), self.vid.get_angle())
+                self.log.append_values(self.vid.position, self.vid.angle)
             else:
                 self.log.append_values((-1, -1), -1)
 
@@ -130,6 +131,7 @@ class ControllerFrame(tk.Frame):
             self.config.write(f)
 
 
+# TODO: Show different data
 class Graph(tk.Frame):
     def __init__(self, parent, title):
         tk.Frame.__init__(self, parent)
@@ -145,7 +147,7 @@ class Graph(tk.Frame):
         self.graph.get_tk_widget().grid()
 
     def update_(self, i):
-        y = self.parent.vid.get_angle()
+        y = self.parent.vid.angle
         self.x_axis.append(int(i))
         self.y_axis.append(int(y))
         if len(self.x_axis) > 20:  # window of values for graph
@@ -163,6 +165,8 @@ class Graph(tk.Frame):
         self.graph.draw()
 
 
+# TODO: delete video on delete entry
+#       save video name based on 1 + last id #
 class NavigationFrame(tk.Frame):
     def __init__(self, parent, data_log):
         tk.Frame.__init__(self, parent)
@@ -221,33 +225,33 @@ class NavigationFrame(tk.Frame):
             self.edit_button_text.set('Save Details')
 
     def export_excel_event(self):
-        print('will happen eventually')
-        # excel_entry = {}
-        # full_entry = self.data_log.get_entry(self.sel_date, self.sel_entry)
-        # excel_entry['x'] = full_entry['x']
-        # excel_entry['y'] = full_entry['y']
-        # excel_entry['angle'] = full_entry['angle']
-        #
-        # df = pd.DataFrame(excel_entry, columns=['x', 'y', 'angle'])
-        #
-        # export_file_path = filedialog.asksaveasfilename(defaultextension='.xlsx')
-        # df.to_excel(export_file_path, index=False, header=True)
+        excel_entry = []
+        full_entry = self.data_log.get_entry(self.sel_date, self.sel_entry)
+        excel_entry.append(eval(full_entry['x']))
+        excel_entry.append(eval(full_entry['y']))
+        excel_entry.append(eval(full_entry['angle']))
+
+        print(excel_entry)
+        df = pd.DataFrame(excel_entry).transpose()
+        df.columns = ['x', 'y', 'angle']
+        print(df)
+
+        df.to_excel(r'..\\data\\exported_data.xlsx', index=False, header=True)
 
     def video_button_event(self):
         url = self.data_log.get_entry(self.sel_date, self.sel_entry)['url']
         ViewClipWindow(self, url)
-        print('video is playing')
 
     def del_button_event(self):
         deleted = self.data_log.del_entry(self.sel_date, self.sel_entry)
-        if deleted == 1:  # deletion was successful
+        if deleted:  # deletion was successful
             self.refresh_dates()
             self.refresh_entries()
             self.entry_tab.set_last_selection()
 
     def on_date_select(self, date, setlast=False):
         self.sel_date = date
-        self.sel_entry = ''     # no entry is date box is active
+        self.sel_entry = ''  # no entry is date box is active
         entries = self.data_log.get_entries(self.sel_date)
         self.entry_tab.update_list(entries)
         if setlast:
@@ -257,10 +261,11 @@ class NavigationFrame(tk.Frame):
         self.sel_entry = entry
         print(entry)
         detail = self.data_log.get_entry(self.sel_date, self.sel_entry)['notes']
-        self.details_tab.configure(state='normal')
-        self.details_tab.delete('1.0', 'end')
-        self.details_tab.insert('end', detail)
-        self.details_tab.configure(state='disabled')
+        if detail:
+            self.details_tab.configure(state='normal')
+            self.details_tab.delete('1.0', 'end')
+            self.details_tab.insert('end', detail)
+            self.details_tab.configure(state='disabled')
 
     def refresh_entries(self):
         self.entry_tab.update_list(self.data_log.get_entries(self.sel_date))
@@ -269,6 +274,7 @@ class NavigationFrame(tk.Frame):
         self.date_tab.update_list(self.data_log.get_dates())
 
 
+# TODO Keep selection in same index on delete if not at the end
 class FileScrollTab(tk.Frame):
     def __init__(self, parent, title):
         tk.Frame.__init__(self, parent)
@@ -313,7 +319,7 @@ class ViewClipWindow(tk.Toplevel):
         self.vidFrame = tk.Label(self, text='Viewing Clip')
         self.vidFrame.pack()
         self.video = camera.VideoPlayback(name)
-        self.delay = int(1000/24)
+        self.delay = int(1000 / 24)
         self.refresh()
 
     def refresh(self):
@@ -329,6 +335,9 @@ class ViewClipWindow(tk.Toplevel):
             self.destroy()
 
 
+# TODO: -Make sure videos scale to the right size
+#       -Click on video frame to change overlay
+#       -Be able to choose source of video
 class VideoFrame(tk.Frame):
     def __init__(self, parent, video, log):
         tk.Frame.__init__(self, parent)
@@ -360,7 +369,8 @@ class VideoFrame(tk.Frame):
             self.vid.stop_record()
             self.record_text.set("Record")
             print('stopped recording')
-            DetailEditWindow(self)
+            top = DetailEditWindow(self)
+            top.focus()
             self.vid.stop_record()
             self.is_recording = False
 
@@ -368,7 +378,7 @@ class VideoFrame(tk.Frame):
             self.vid.start_record('output')
             self.record_text.set("Recording (Click again to stop)")
             print('is recording')
-            
+
             date = datetime.today().strftime('%m-%d-%Y')
             date_key = datetime.today().strftime('%m/%d/%Y')
             try:
@@ -420,6 +430,7 @@ class DetailEditWindow(tk.Toplevel):
 
         self.textbox = tk.Text(self, height=6, width=40)
         self.textbox.grid(row=1, columnspan=2, padx=10, pady=5)
+        self.textbox.focus()
 
         save_button = tk.Button(self, text='Save', command=self.save_btn_event)
         save_button.grid(row=2, column=0, pady=5)
@@ -428,7 +439,7 @@ class DetailEditWindow(tk.Toplevel):
         discard_button.grid(row=2, column=1, pady=5)
 
     def save_btn_event(self):
-        note = self.textbox.get('1.0', 'end')
+        note = self.textbox.get('1.0', 'end-1c')  # rm 1 char from end b/c it inserts a /n
         self.parent.on_save_event(note)
         print('saved')
         self.destroy()

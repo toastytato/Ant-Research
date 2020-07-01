@@ -3,7 +3,7 @@ import numpy as np
 import imutils
 
 
-class CalculatePCA:
+class TrackerHSV:
     def __init__(self):
         self.m = np.array([0, 0])  # global mean
         self.e = np.array([0, 0])  # global eigenvector
@@ -12,11 +12,11 @@ class CalculatePCA:
         self.prev_time = 0.0
         self.skip = 0
 
-    def calculate(self, thresh):
+    def draw_tracker(self, frame):
         # From a matrix of pixels to a matrix of coordinates of non-black points.
         # (note: mind the col/row order, pixels are accessed as [row, col]
         # but when we draw, it's (x, y), so have to swap here or there)
-        mat = np.argwhere(thresh != 0)
+        mat = np.argwhere(frame != 0)
 
         # let's swap here... (e. g. [[row, col], ...] to [[col, row], ...])
         mat[:, [0, 1]] = mat[:, [1, 0]]
@@ -30,13 +30,15 @@ class CalculatePCA:
         # and eigenvectors (e. g. directions of principal components)
         self.m, self.e = cv2.PCACompute(mat, mean=np.array([]))
 
-    def get_position(self):
+    @property
+    def position(self):
         try:
             return self.m[0][0], self.m[0][1]
         except IndexError:
             return -1
 
-    def get_angle(self):
+    @property
+    def angle(self):
         v_vector = (0, 1)  # vertical vector
 
         try:
@@ -51,19 +53,8 @@ class CalculatePCA:
 
         return angle * 360 / (2 * 3.1415)  # angle in degrees
 
-    def get_rectangle(self, prim_scale, sec_scale):
-        m = self.m
-        e = self.e
-
-        # rectangle points
-        rectangle = np.array([tuple(m[0] + e[0] * prim_scale + e[1] * sec_scale),
-                              tuple(m[0] + e[0] * prim_scale + e[1] * -sec_scale),
-                              tuple(m[0] + e[0] * -prim_scale + e[1] * -sec_scale),
-                              tuple(m[0] + e[0] * -prim_scale + e[1] * sec_scale)])
-
-        return np.int32(rectangle)  # convert to 32 bit cuz cv2 spazzes out if it's 64
-
-    def get_velocity(self):
+    @property
+    def velocity(self):
         velocity_vector = np.full((2, 2), 0)
 
         curr_position = self.m[0]
@@ -79,8 +70,20 @@ class CalculatePCA:
 
         return velocity_vector
 
+    def get_rectangle(self, prim_scale, sec_scale):
+        m = self.m
+        e = self.e
 
-class VideoCapture(CalculatePCA):
+        # rectangle points
+        rectangle = np.array([tuple(m[0] + e[0] * prim_scale + e[1] * sec_scale),
+                              tuple(m[0] + e[0] * prim_scale + e[1] * -sec_scale),
+                              tuple(m[0] + e[0] * -prim_scale + e[1] * -sec_scale),
+                              tuple(m[0] + e[0] * -prim_scale + e[1] * sec_scale)])
+
+        return np.int32(rectangle)  # convert to 32 bit cuz cv2 spazzes out if it's 64
+
+
+class VideoCapture(TrackerHSV):
     def __init__(self, source, framerate):
         super().__init__()
         self.vid = cv2.VideoCapture(source)
@@ -122,19 +125,13 @@ class VideoCapture(CalculatePCA):
         if len(self.cnts) > 0:
             # find the largest contour in the mask, then use
             c = max(self.cnts, key=cv2.contourArea)
-
             # draw filled contour to out
             cv2.drawContours(out, [c], -1, 255, cv2.FILLED)
-            # out = cv2.bitwise_and(mask3, out)
-            super().calculate(out)
-            # print(pca.get_angle())
-
+            # calculate the direction vector with PCA
+            super().draw_tracker(out)
             red = (0, 0, 255)
             black = (255, 255, 255)
-
-            v = super().get_velocity()  # velocity vector
-            # gui.set_position(pca.get_position())
-            # gui.set_velocity(np.linalg.norm(v[1] - v[0]))  # velocity magnitude
+            v = super().velocity  # velocity vector
 
             cv2.arrowedLine(self.frame, tuple(v[0]), tuple(v[1]), red, 2)
             cv2.polylines(self.frame, [super().get_rectangle(40, 40)], 1, red, 2)
@@ -147,18 +144,24 @@ class VideoCapture(CalculatePCA):
             return False
 
     def get_frame(self, vid_type="original"):
-        if self.vid.isOpened():
-            ret, self.frame = self.vid.read()
-            if ret:
-                self.process_frame()
-                if vid_type == "original":
-                    return ret, cv2.cvtColor(self.frame, cv2.COLOR_BGR2RGB)
-                elif vid_type == "mask":
-                    overlay = cv2.addWeighted(self.frame, .3, cv2.cvtColor(self.mask, cv2.COLOR_GRAY2BGR), .7, 0)
-                    return ret, cv2.cvtColor(overlay, cv2.COLOR_BGR2RGB)
+        if not self.vid.isOpened():
+            print('Could not open video')
+            return -1
+        ret, self.frame = self.vid.read()
+        if not ret:
+            print('Cannot read video file')
+            return -1
 
-            else:
-                return ret, None
+        self.process_frame()
+
+        if vid_type == "original":
+            return ret, cv2.cvtColor(self.frame, cv2.COLOR_BGR2RGB)
+        elif vid_type == "mask":
+            overlay = cv2.addWeighted(self.frame, .3, cv2.cvtColor(self.mask, cv2.COLOR_GRAY2BGR), .7, 0)
+            return ret, cv2.cvtColor(overlay, cv2.COLOR_BGR2RGB)
+        else:
+            print('eh')
+            return False, []
 
     def start_record(self, video_name):
         fourcc = cv2.VideoWriter_fourcc(*'XVID')
@@ -189,6 +192,8 @@ class VideoPlayback:
             if ret:
                 frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             return ret, frame
+        else:
+            return False, None
 
 
 if __name__ == '__main__':
