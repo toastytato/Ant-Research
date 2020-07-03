@@ -98,7 +98,7 @@ class VideoCapture(TrackerHSV):
 
         self.color_low = 0, 0, 0
         self.color_high = 255, 255, 255
-
+ 
     def set_mask_ranges(self, color_low, color_high):
         self.color_low = color_low
         self.color_high = color_high
