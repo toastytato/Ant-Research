@@ -18,10 +18,10 @@ class TrackerApplication(tk.Frame):
         self.bg_color = "SystemButtonFace"  # default color
         self.configure(background=self.bg_color)
 
-        framerate = 30
+        speed = 1
         ant_url = r'..\\data\\antvideo.mp4'
-        self.stream = camera.VideoCapture(ant_url, framerate)
-        self.delay = int(1000 / framerate)
+        self.stream = camera.VideoCapture(0)
+        self.delay = int(1000 / speed / self.stream.framerate)
 
         self.data_log = data_handler.DataLog()
 
@@ -108,7 +108,7 @@ class ControllerFrame(tk.Frame):
     def update_(self):
         color_low = tuple(self.sliders[i].get() for i in range(0, self.num_sliders) if i % 2 == 0)
         color_high = tuple(self.sliders[i].get() for i in range(0, self.num_sliders) if i % 2 == 1)
-        self.vid.set_mask_ranges(color_low, color_high)
+        self.vid.hsv_tracker.set_mask_ranges(color_low, color_high)
 
         self.frames_cnt += 1
         # call animate graph function using animate period and check if there is a lock on an object
@@ -147,7 +147,7 @@ class Graph(tk.Frame):
         self.graph.get_tk_widget().grid()
 
     def update_(self, i):
-        y = self.parent.vid.angle
+        y = self.parent.vid.motion_tracker.angle
         self.x_axis.append(int(i))
         self.y_axis.append(int(y))
         if len(self.x_axis) > 20:  # window of values for graph
@@ -323,8 +323,8 @@ class ViewClipWindow(tk.Toplevel):
         self.refresh()
 
     def refresh(self):
-        ret, frame = self.video.get_frame()
-        if ret:
+        frame = self.video.get_frame()
+        if frame is not None:
             frame = Image.fromarray(frame)
             frame = ImageTk.PhotoImage(image=frame)
             self.vidFrame.img = frame
@@ -401,15 +401,16 @@ class VideoFrame(tk.Frame):
         if self.is_recording:
             self.vid.capture_frame()
 
-        ret, frame1 = self.vid.get_frame("original")
-        ret, frame2 = self.vid.get_frame("mask")
+        self.vid.update()
+        frame1 = self.vid.get_frame("motion")
+        frame2 = self.vid.get_frame('mask2')
 
-        if ret:
+        if frame1 is not None:
             frame1 = Image.fromarray(frame1)
             frame1 = ImageTk.PhotoImage(image=frame1)
             self.leftVideo.img = frame1
             self.leftVideo.configure(image=frame1)
-
+        if frame2 is not None:
             frame2 = Image.fromarray(frame2)
             frame2 = ImageTk.PhotoImage(image=frame2)
             self.rightVideo.img = frame2

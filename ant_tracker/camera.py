@@ -1,53 +1,72 @@
 import cv2
 import numpy as np
 import imutils
+import time
+import math
 
 
-class TrackerHSV:
+class PCA:
     def __init__(self):
-        self.m = np.array([0, 0])  # global mean
-        self.e = np.array([0, 0])  # global eigenvector
+        self.mean = np.array([0, 0])  # global mean
+        self.eigens = np.full((1, 2), 0)  # global eigenvectors
 
         self.prev_position = np.array([0, 0])
         self.prev_time = 0.0
-        self.skip = 0
 
-    def draw_tracker(self, frame):
+    def calculate(self, mask):
+        # mean (e. g. the geometrical center)
+        # and eigenvectors (e. g. directions of principal components)
+        self.mean, self.eigens = cv2.PCACompute(mask, mean=np.array([]))
+        self.mean = self.mean.ravel()  # convert from a 2D array to 1D array for x and y coord of mean
+
+    @staticmethod
+    def contour_to_mask(contour, shape):
+        # make a new output size of mask3
+        out = np.zeros(shape, np.uint8)
+        # draw filled contour to out
+        cv2.drawContours(out, [contour], -1, 255, cv2.FILLED)
         # From a matrix of pixels to a matrix of coordinates of non-black points.
         # (note: mind the col/row order, pixels are accessed as [row, col]
         # but when we draw, it's (x, y), so have to swap here or there)
-        mat = np.argwhere(frame != 0)
-
+        mat = np.argwhere(out != 0)
         # let's swap here... (e. g. [[row, col], ...] to [[col, row], ...])
         mat[:, [0, 1]] = mat[:, [1, 0]]
         # or we could've swapped at the end, when drawing
         # (e. g. center[0], center[1] = center[1], center[0], same for endpoint1 and endpoint2),
         # probably better performance-wise
-
         mat = np.array(mat).astype(np.float32)  # have to convert type for PCA
 
-        # mean (e. g. the geometrical center)
-        # and eigenvectors (e. g. directions of principal components)
-        self.m, self.e = cv2.PCACompute(mat, mean=np.array([]))
+        return mat
+
+    def get_rectangle(self):
+        m = self.position
+        e = self.eigenvectors
+        prim_scale = 15  # self.box_height
+        sec_scale = 1  # self.box_width
+
+        # rectangle points
+        rectangle = np.array([tuple(m + e[0] * prim_scale + e[1] * sec_scale),
+                              tuple(m + e[0] * prim_scale + e[1] * -sec_scale),
+                              tuple(m + e[0] * -prim_scale + e[1] * -sec_scale),
+                              tuple(m + e[0] * -prim_scale + e[1] * sec_scale)])
+
+        return np.int32(rectangle)  # convert to 32 bit cuz cv2 spazzes out if it's 64
 
     @property
     def position(self):
-        try:
-            return self.m[0][0], self.m[0][1]
-        except IndexError:
-            return -1
+        return self.mean
+
+    @property
+    def eigenvectors(self):
+        return self.eigens
 
     @property
     def angle(self):
-        v_vector = (0, 1)  # vertical vector
-
-        try:
-            unit_vector_1 = (self.e[0]) / np.linalg.norm(self.e[0])
-        except RuntimeWarning:
-            return -1
+        vertical_vector = (0, 1)  # vertical vector
 
         # getting angle relative to vertical axis
-        unit_vector_2 = v_vector / np.linalg.norm(v_vector)
+        unit_vector_1 = (self.eigens[0]) / np.linalg.norm(self.eigens[0])
+        unit_vector_2 = vertical_vector / np.linalg.norm(vertical_vector)
         dot_product = np.dot(unit_vector_1, unit_vector_2)
         angle = np.arccos(dot_product)  # angle in radians
 
@@ -57,7 +76,7 @@ class TrackerHSV:
     def velocity(self):
         velocity_vector = np.full((2, 2), 0)
 
-        curr_position = self.m[0]
+        curr_position = self.mean
         curr_time = cv2.getTickCount()
         elapsed_time = curr_time - self.prev_time
         distance = curr_position - self.prev_position
@@ -70,40 +89,20 @@ class TrackerHSV:
 
         return velocity_vector
 
-    def get_rectangle(self, prim_scale, sec_scale):
-        m = self.m
-        e = self.e
 
-        # rectangle points
-        rectangle = np.array([tuple(m[0] + e[0] * prim_scale + e[1] * sec_scale),
-                              tuple(m[0] + e[0] * prim_scale + e[1] * -sec_scale),
-                              tuple(m[0] + e[0] * -prim_scale + e[1] * -sec_scale),
-                              tuple(m[0] + e[0] * -prim_scale + e[1] * sec_scale)])
-
-        return np.int32(rectangle)  # convert to 32 bit cuz cv2 spazzes out if it's 64
-
-
-class VideoCapture(TrackerHSV):
-    def __init__(self, source, framerate):
+class TrackerHSV(PCA):
+    def __init__(self):
         super().__init__()
-        self.vid = cv2.VideoCapture(source)
-        self.frame = None
+        self.output = None
         self.mask = None
-        self.cnts = []
-
-        self.save_video = None
-        self.framerate = framerate
-        self.width = self.vid.get(cv2.CAP_PROP_FRAME_WIDTH)
-        self.height = self.vid.get(cv2.CAP_PROP_FRAME_HEIGHT)
+        self.frame = None
+        self.has_lock = False
 
         self.color_low = 0, 0, 0
         self.color_high = 255, 255, 255
- 
-    def set_mask_ranges(self, color_low, color_high):
-        self.color_low = color_low
-        self.color_high = color_high
 
-    def process_frame(self):
+    def update(self, frame):
+        self.frame = frame
         self.frame = cv2.flip(self.frame, 1)
         blurred = cv2.GaussianBlur(self.frame, (11, 11), 0)
         hsv = cv2.cvtColor(blurred, cv2.COLOR_BGR2HSV)
@@ -115,53 +114,139 @@ class VideoCapture(TrackerHSV):
 
         # find contours in the mask and initialize the current
         # (x, y) center of the ball
-        self.cnts = cv2.findContours(self.mask.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        self.cnts = imutils.grab_contours(self.cnts)
+        cnts = cv2.findContours(self.mask.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        cnts = imutils.grab_contours(cnts)
 
-        # make a new output size of mask3
-        out = np.zeros(self.mask.shape, np.uint8)
-
-        # only proceed if at least one contour was found
-        if len(self.cnts) > 0:
+        if len(cnts) > 0:
+            self.has_lock = True
             # find the largest contour in the mask, then use
-            c = max(self.cnts, key=cv2.contourArea)
-            # draw filled contour to out
-            cv2.drawContours(out, [c], -1, 255, cv2.FILLED)
-            # calculate the direction vector with PCA
-            super().draw_tracker(out)
+            c = max(cnts, key=cv2.contourArea)
+
+            super().calculate(super().contour_to_mask(c, self.mask.shape))
+
             red = (0, 0, 255)
-            black = (255, 255, 255)
-            v = super().velocity  # velocity vector
 
-            cv2.arrowedLine(self.frame, tuple(v[0]), tuple(v[1]), red, 2)
-            cv2.polylines(self.frame, [super().get_rectangle(40, 40)], 1, red, 2)
-            cv2.drawContours(self.mask, [c], -1, (0, 255, 0), 1)
+            # cv2.drawContours(self.mask, [c], -1, (0, 255, 0), 1)
+            cv2.arrowedLine(self.output, tuple(super().velocity[0]), tuple(super().velocity[1]), red, 2)
+            cv2.polylines(self.output, [super().get_rectangle()], 1, red, 1)
 
-    def has_track(self):
-        if len(self.cnts) > 0:
-            return True
-        else:
-            return False
+        return self.output
 
-    def get_frame(self, vid_type="original"):
+    def set_mask_ranges(self, color_low, color_high):
+        self.color_low = color_low
+        self.color_high = color_high
+
+
+class TrackerMotion(PCA):
+    def __init__(self):
+        super().__init__()
+        self.motion_filter = cv2.createBackgroundSubtractorKNN(detectShadows=False)
+        self.mask = None
+        self.result = None
+        self.pos = (0, 0)
+
+    def update(self, frame):
+        self.result = frame.copy()
+        self.mask = self.motion_filter.apply(frame)
+        self.mask = cv2.erode(self.mask, None, iterations=1)
+        self.mask = cv2.dilate(self.mask, None, iterations=1)
+
+        cnts = cv2.findContours(self.mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        cnts = imutils.grab_contours(cnts)
+
+        valid_cnts = []
+        best_cnt = None
+        min_area = 120
+        min_dist = 10000  # arbitrary large number, preferably larger than frame size
+        best_pos = (0, 0)
+
+        for c in cnts:
+            if cv2.contourArea(c) < min_area:   # skip objects that are probably noise
+                continue
+            valid_cnts.append(c)
+
+            M = cv2.moments(c)
+            cX = int(M["m10"] / M["m00"])
+            cY = int(M["m01"] / M["m00"])
+
+            dist = self.calc_distance(self.pos, (cX, cY))
+            print(dist)
+            if dist < min_dist:
+                best_cnt = c
+                min_dist = dist
+                best_pos = (cX, cY)
+
+        self.pos = best_pos
+
+        red = (0, 0, 255)
+        green = (0, 255, 0)
+        blue = (255, 0, 0)
+
+        if best_cnt is not None:
+            for c in valid_cnts:
+                (x, y, w, h) = cv2.boundingRect(c)
+                rect_color = red
+                if c is best_cnt:
+                    rect_color = green
+                cv2.rectangle(self.result, (x, y), (x + w, y + h), rect_color, 2)
+
+            super().calculate(super().contour_to_mask(best_cnt, self.mask.shape))
+            # cv2.arrowedLine(self.result, tuple(super().velocity[0]), tuple(super().velocity[1]), red, 2)
+            cv2.polylines(self.result, [super().get_rectangle()], 1, red, 2)
+
+        return self.result
+
+    @staticmethod
+    def calc_distance(pt1, pt2):
+        dist = math.sqrt((pt2[0]-pt1[0])**2 + (pt2[1] - pt1[1])**2)
+        return dist
+
+
+class VideoCapture:
+    def __init__(self, source):
+        self.vid = cv2.VideoCapture(source)
+        self.frame = None
+        self.mask = None
+        self.cnts = []
+
+        self.save_video = None
+        self.tracked = None
+        self.tracked2 = None
+        self.framerate = self.vid.get(cv2.CAP_PROP_FPS)
+        self.width = self.vid.get(cv2.CAP_PROP_FRAME_WIDTH)
+        self.height = self.vid.get(cv2.CAP_PROP_FRAME_HEIGHT)
+
+        self.hsv_tracker = TrackerHSV()
+        self.motion_tracker = TrackerMotion()
+
+    def update(self):
         if not self.vid.isOpened():
             print('Could not open video')
-            return -1
+            return None
         ret, self.frame = self.vid.read()
         if not ret:
             print('Cannot read video file')
-            return -1
+            return None
 
-        self.process_frame()
+        self.tracked = self.hsv_tracker.update(self.frame)
+        self.tracked2 = self.motion_tracker.update(self.frame)
 
+    def has_track(self):
+        return self.hsv_tracker.has_lock
+
+    def get_frame(self, vid_type="original"):
         if vid_type == "original":
-            return ret, cv2.cvtColor(self.frame, cv2.COLOR_BGR2RGB)
-        elif vid_type == "mask":
-            overlay = cv2.addWeighted(self.frame, .3, cv2.cvtColor(self.mask, cv2.COLOR_GRAY2BGR), .7, 0)
-            return ret, cv2.cvtColor(overlay, cv2.COLOR_BGR2RGB)
-        else:
-            print('eh')
-            return False, []
+            return cv2.cvtColor(self.frame, cv2.COLOR_BGR2RGB)  # frame is in BGR, tkinter needs RGB
+        elif vid_type == 'hsv':
+            return cv2.cvtColor(self.tracked, cv2.COLOR_BGR2RGB)
+        elif vid_type == "mask1":
+            overlay = cv2.addWeighted(self.frame, .5, cv2.cvtColor(self.hsv_tracker.mask, cv2.COLOR_GRAY2BGR), .5, 0)
+            return cv2.cvtColor(overlay, cv2.COLOR_BGR2RGB)
+        elif vid_type == 'motion':
+            return cv2.cvtColor(self.tracked2, cv2.COLOR_BGR2RGB)
+        elif vid_type == 'mask2':
+            overlay = cv2.addWeighted(self.frame, .5, cv2.cvtColor(self.motion_tracker.mask, cv2.COLOR_GRAY2BGR), .5, 0)
+            return cv2.cvtColor(overlay, cv2.COLOR_BGR2RGB)
 
     def start_record(self, video_name):
         fourcc = cv2.VideoWriter_fourcc(*'XVID')
@@ -184,17 +269,26 @@ class VideoCapture(TrackerHSV):
 class VideoPlayback:
     def __init__(self, name):
         url = r'..\\clips\\' + name + '.avi'
-        self.cap = cv2.VideoCapture(url)
+        self.vid = cv2.VideoCapture(url)
 
     def get_frame(self):
-        if self.cap.isOpened():
-            ret, frame = self.cap.read()
-            if ret:
-                frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            return ret, frame
-        else:
-            return False, None
+        if not self.vid.isOpened():
+            print('Could not open video')
+            return None
+        ret, frame = self.vid.read()
+        if not ret:
+            print('Cannot read video file')
+            return None
+        return frame
 
 
 if __name__ == '__main__':
-    print('scooby dooby doo')
+    pass
+
+# use motion to set bounding box
+# actual pos = motion tracker
+# compare motion tracker pos and reg tracker pos
+# use the motion track that is closest to the reg tracker
+# if reg track is too far from motion track, reset reg track
+# if motion track is gone, actual pos = reg track
+# once motion track is back, actual pos = motion track that's closest to reg track
