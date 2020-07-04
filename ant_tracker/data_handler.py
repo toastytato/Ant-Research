@@ -101,8 +101,3 @@ class DataLog:
         with open(self.json_path, "w") as write_file:
             json.dump(self.data, write_file)
         return True
-
-
-class ExcelExport:
-    def __init__(self, name):
-        print('oop')

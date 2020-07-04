@@ -170,7 +170,7 @@ class TrackerMotion(PCA):
             cY = int(M["m01"] / M["m00"])
 
             dist = self.calc_distance(self.pos, (cX, cY))
-            print(dist)
+
             if dist < min_dist:
                 best_cnt = c
                 min_dist = dist
@@ -203,7 +203,7 @@ class TrackerMotion(PCA):
 
 
 class VideoCapture:
-    def __init__(self, source):
+    def __init__(self, source, speed=1):
         self.vid = cv2.VideoCapture(source)
         self.frame = None
         self.mask = None
@@ -213,6 +213,7 @@ class VideoCapture:
         self.tracked = None
         self.tracked2 = None
         self.framerate = self.vid.get(cv2.CAP_PROP_FPS)
+        self.refresh_period = int(1000 / speed / self.framerate)
         self.width = self.vid.get(cv2.CAP_PROP_FRAME_WIDTH)
         self.height = self.vid.get(cv2.CAP_PROP_FRAME_HEIGHT)
 
