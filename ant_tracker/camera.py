@@ -220,7 +220,7 @@ class VideoCapture:
         self.hsv_tracker = TrackerHSV()
         self.motion_tracker = TrackerMotion()
 
-    def update(self):
+    def update(self, track=False):
         if not self.vid.isOpened():
             print('Could not open video')
             return None
@@ -229,8 +229,13 @@ class VideoCapture:
             print('Cannot read video file')
             return None
 
-        self.tracked = self.hsv_tracker.update(self.frame)
-        self.tracked2 = self.motion_tracker.update(self.frame)
+        if track:
+            self.tracked = self.hsv_tracker.update(self.frame)
+            self.tracked2 = self.motion_tracker.update(self.frame)
+        else:
+            self.tracked = self.frame
+            self.tracked2 = self.frame
+
         return True
 
     def has_track(self):

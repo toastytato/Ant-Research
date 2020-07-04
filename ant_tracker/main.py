@@ -14,23 +14,27 @@ class MainController(tk.Frame):
         self.configure(background=self.bg_color)
 
         ant_url = r'..\\data\\antvideo.mp4'
-        self.top_video = camera.VideoCapture(ant_url, speed=2)
-        self.live_video = camera.VideoCapture(0)
+        camera_source = 0
+        self.left_video = camera.VideoCapture(ant_url, speed=4)
+        self.right_video = camera.VideoCapture(camera_source)
         self.graph_refresh_period = 100  # in milliseconds
 
         self.data_log = data_handler.DataLog()
 
-        self.vidModel = VideoModel(self.data_log)
+        self.left_vidModel = VideoModel(self.data_log)
+        self.right_vidModel = VideoModel(self.data_log)
         self.vidView = VideoView(self)
         self.vidView.grid(row=0, column=0, sticky='nsew')
         self.vidView.configure(background=self.bg_color)
         self.vidView.recordButton.bind('<Button-1>', self.record_event)
-        self.vidView.leftVideo.bind('<Button-1>', self.on_video_click)
+        self.vidView.leftVideo.bind('<Button-1>', self.on_left_video_click)
+        self.vidView.rightVideo.bind('<Button-1>', self.on_right_video_click)
 
         self.panelModel = SidePanelModel()
         self.panelView = SidePanelView(self, self.panelModel.config)
         self.panelView.grid(row=0, column=1, rowspan=2, sticky='nsew')
         self.panelView.configure(background=self.bg_color)
+        [slider.bind('<ButtonRelease-1>', self.sliders_event) for slider in self.panelView.sliders]
         self.panelView.quit_button.bind('<Button-1>', self.exit)
 
         self.navModel = NavigationModel(self.data_log)
@@ -56,7 +60,8 @@ class MainController(tk.Frame):
         self.rowconfigure(1, weight=1)
 
         self.master.protocol("WM_DELETE_WINDOW", self.exit)
-        self.refresh()
+        self.refresh_left()
+        self.refresh_right()
         self.animate_graphs()
 
     # ---File Navigator Functions---
@@ -126,7 +131,7 @@ class MainController(tk.Frame):
 
     def save_entry_event(self, event):
         notes = self.details_editor.textbox.get('1.0', 'end-1c')  # rm 1 char from end b/c it inserts a /n
-        date_key, _ = self.data_log.save_entry(note=notes, url=self.vidModel.get_video_name())
+        date_key, _ = self.data_log.save_entry(note=notes, url=self.left_vidModel.get_video_name())
         self.data_log.print_entry()
         self.navView.reload_dates(self.data_log.get_dates())
         self.details_editor.destroy()
@@ -138,12 +143,17 @@ class MainController(tk.Frame):
 
     # ---Side Panel Functions---
 
+    def sliders_event(self, event):
+        print('changed slider value')
+        self.left_video.hsv_tracker.set_mask_ranges(self.panelView.low_colors,
+                                                    self.panelView.high_colors)
+
     def animate_graphs(self):
         # call animate graph function using animate period and check if there is a lock on an object
         for name in self.panelView.graph_names:
-            if self.top_video.has_track():
-                self.panelView.graphs['Angle'].update_values(self.top_video.motion_tracker.angle)
-                self.panelView.graphs['Position'].update_values(self.top_video.motion_tracker.position[0])
+            if self.left_video.has_track():
+                self.panelView.graphs['Angle'].update_values(self.left_video.motion_tracker.angle)
+                self.panelView.graphs['Position'].update_values(self.left_video.motion_tracker.position[0])
                 if self.panelView.graph_tabs.tab(self.panelView.graph_tabs.select(), 'text') == name:
                     self.panelView.graphs[name].animate()
         self.record_data()
@@ -151,52 +161,60 @@ class MainController(tk.Frame):
 
     def exit(self, event=None):
         self.panelModel.save_settings(self.panelView.slider_names, self.panelView.sliders)
-        if self.vidModel.is_recording:
-            self.top_video.stop_record()
-            self.vidModel.is_recording = False
+        if self.left_vidModel.is_recording:
+            self.left_video.stop_record()
+            self.left_vidModel.is_recording = False
         self.quit()
 
     # ---Video Viewer Frame Functions---
 
-    def on_video_click(self, event):
-        self.vidModel.cycle_overlay()
+    def on_left_video_click(self, event):
+        self.left_vidModel.cycle_overlay()
 
-    def refresh(self):
-        # update vid frame first to process frame then update ctrl frame
-        self.top_video.hsv_tracker.set_mask_ranges(self.panelView.low_colors,
-                                                   self.panelView.high_colors)
-        if self.vidModel.is_recording:
-            self.top_video.capture_frame()
+    def on_right_video_click(self, event):
+        self.right_vidModel.cycle_overlay()
 
-        if self.top_video.update() is not None:
-            frame1 = self.top_video.get_frame(self.vidModel.cur_overlay)
-            frame2 = self.top_video.get_frame('mask2')
+    def refresh_left(self):
+        if self.left_vidModel.is_recording:
+            self.left_video.capture_frame()
+
+        if self.left_video.update(track=True) is not None:
+            frame1 = self.left_video.get_frame(self.left_vidModel.cur_overlay)
             self.vidView.refresh_left(frame1)
+
+        self.master.after(self.left_video.refresh_period, self.refresh_left)
+
+    def refresh_right(self):
+        if self.right_vidModel.is_recording:
+            self.right_video.capture_frame()
+
+        if self.right_video.update(track=False) is not None:
+            frame2 = self.right_video.get_frame(self.right_vidModel.cur_overlay)
             self.vidView.refresh_right(frame2)
 
-        self.master.after(self.top_video.refresh_period, self.refresh)
+        self.master.after(self.right_video.refresh_period, self.refresh_right)
 
     def record_data(self):
-        if self.vidModel.is_recording:
-            if self.top_video.has_track():
-                self.data_log.append_values(self.top_video.motion_tracker.position,
-                                            self.top_video.motion_tracker.angle)
+        if self.left_vidModel.is_recording:
+            if self.left_video.has_track():
+                self.data_log.append_values(self.left_video.motion_tracker.position,
+                                            self.left_video.motion_tracker.angle)
             else:
                 self.data_log.append_values((-1, -1), -1)
 
     def record_event(self, event):
-        if self.vidModel.is_recording:
-            self.top_video.stop_record()
+        if self.left_vidModel.is_recording:
+            self.left_video.stop_record()
             self.vidView.record_text.set("Record")
             self.create_editor_window()
             print('stopped recording')
         else:
-            self.top_video.start_record('output')
+            self.left_video.start_record('output')
             self.vidView.record_text.set("Recording (Click again to stop)")
-            self.top_video.start_record(self.vidModel.get_video_name())
+            self.left_video.start_record(self.left_vidModel.get_video_name())
             print('is recording')
         # toggle recording with button
-        self.vidModel.is_recording = not self.vidModel.is_recording
+        self.left_vidModel.is_recording = not self.left_vidModel.is_recording
 
 
 if __name__ == '__main__':
