@@ -42,7 +42,7 @@ class PCA:
         m = self.position
         e = self.eigenvectors
         prim_scale = 15  # self.box_height
-        sec_scale = 1  # self.box_width
+        sec_scale = 10  # self.box_width
 
         # rectangle points
         rectangle = np.array([tuple(m + e[0] * prim_scale + e[1] * sec_scale),
@@ -156,7 +156,7 @@ class TrackerMotion(PCA):
 
         valid_cnts = []
         best_cnt = None
-        min_area = 120
+        min_area = 100
         min_dist = 10000  # arbitrary large number, preferably larger than frame size
         best_pos = (0, 0)
 
@@ -188,11 +188,11 @@ class TrackerMotion(PCA):
                 rect_color = red
                 if c is best_cnt:
                     rect_color = green
-                cv2.rectangle(self.result, (x, y), (x + w, y + h), rect_color, 2)
+                # cv2.rectangle(self.result, (x, y), (x + w, y + h), rect_color, 2)
 
             super().calculate(super().contour_to_mask(best_cnt, self.mask.shape))
             # cv2.arrowedLine(self.result, tuple(super().velocity[0]), tuple(super().velocity[1]), red, 2)
-            cv2.polylines(self.result, [super().get_rectangle()], 1, red, 2)
+            cv2.polylines(self.result, [super().get_rectangle()], 1, green, 2)
 
         return self.result
 
@@ -230,6 +230,7 @@ class VideoCapture:
 
         self.tracked = self.hsv_tracker.update(self.frame)
         self.tracked2 = self.motion_tracker.update(self.frame)
+        return True
 
     def has_track(self):
         return self.hsv_tracker.has_lock

@@ -71,13 +71,13 @@ class DataLog:
         try:
             return list(self.data[date].keys())
         except KeyError:
-            return False
+            return None
 
     def get_entry(self, date, entry):
         try:
             return self.data[date][entry]
         except KeyError:
-            return False
+            return None
 
     def edit_notes(self, note, date, entry):
         self.data[date][entry]['notes'] = note
