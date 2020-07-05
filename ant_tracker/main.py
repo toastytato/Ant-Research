@@ -15,8 +15,8 @@ class MainController(tk.Frame):
 
         ant_url = r'..\\data\\antvideo.mp4'
         camera_source = 0
-        self.left_video = camera.VideoCapture(ant_url, speed=8)
-        self.right_video = camera.VideoCapture(camera_source)
+        self.left_video = camera.VideoCapture(ant_url, side='left', speed=8)
+        self.right_video = camera.VideoCapture(camera_source, side='right')
         self.graph_refresh_period = 100  # in milliseconds
 
         self.data_log = data_handler.DataLog()
@@ -59,8 +59,9 @@ class MainController(tk.Frame):
         self.rowconfigure(1, weight=1)
 
         self.master.protocol("WM_DELETE_WINDOW", self.exit)
-        self.refresh_left()
-        self.refresh_right()
+        self.refresh(self.left_video)
+        self.refresh(self.right_video)
+        # self.refresh_right()
         self.animate_graphs()
 
     # ---File Navigator Functions---
@@ -174,25 +175,17 @@ class MainController(tk.Frame):
     def on_right_video_click(self, event):
         self.right_video.cycle_overlay()
 
-    def refresh_left(self):
+    def refresh(self, video):
         if self.vidModel.is_recording:
-            self.left_video.capture_frame()
+            video.capture_frame()
 
-        if self.left_video.update() is not None:
-            frame = self.left_video.get_frame()
-            self.vidView.refresh_left(frame)
-
-        self.master.after(self.left_video.refresh_period, self.refresh_left)
-
-    def refresh_right(self):
-        if self.vidModel.is_recording:
-            self.right_video.capture_frame()
-
-        if self.right_video.update() is not None:
-            frame = self.right_video.get_frame()
-            self.vidView.refresh_right(frame)
-
-        self.master.after(self.right_video.refresh_period, self.refresh_right)
+        if video.update() is not None:
+            frame = video.get_frame()
+            if video.side == 'left':
+                self.vidView.refresh_left(frame)
+            elif video.side == 'right':
+                self.vidView.refresh_right(frame)
+        self.master.after(video.refresh_period, self.refresh, video)
 
     def record_data(self):
         if self.vidModel.is_recording:

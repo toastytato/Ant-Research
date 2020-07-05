@@ -207,8 +207,9 @@ class TrackerMotion(PCA):
 
 
 class VideoCapture:
-    def __init__(self, source, speed=1):
+    def __init__(self, source, side, speed=1):
         self.vid = cv2.VideoCapture(source)
+        self.side = side
         self.frame = None
         self.mask = None
         self.cnts = []
