@@ -7,9 +7,8 @@ import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from ant_tracker import data_handler
 from ant_tracker import camera
-from datetime import datetime
 
-# In charge of the data behind the UI elements
+# In charge of holding and manipulating the data behind the UI elements
 
 
 class SidePanelModel:
@@ -79,28 +78,8 @@ class ViewClipWindow(tk.Toplevel):
             self.destroy()
 
 
-class VideoModel:
-    def __init__(self, log):
-        self.log = log
+class VideoFrameModel:
+    def __init__(self):
         self.is_recording = False
-        self.overlay_index = 1
-        self.video_overlay = ['original', 'motion', 'mask2']
+        self.min_x = 720
 
-    def get_video_name(self):
-        date = datetime.today().strftime('%m-%d-%Y')
-        date_key = datetime.today().strftime('%m/%d/%Y')
-        try:
-            suffix = str(len(self.log.get_entries(date_key)))
-        except TypeError:
-            suffix = '0'
-            print('first entry for today')
-
-        name = date + '-' + suffix
-        return name
-
-    @property
-    def cur_overlay(self):
-        return self.video_overlay[self.overlay_index]
-
-    def cycle_overlay(self):
-        self.overlay_index = (self.overlay_index + 1) % len(self.video_overlay)

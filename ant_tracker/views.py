@@ -170,7 +170,7 @@ class FileScrollTab(tk.Frame):
 # TODO: -Make sure videos scale toView the right size
 #       -Click on video frame to change overlay
 #       -Be able to choose source of video
-class VideoView(tk.Frame):
+class VideoFrameView(tk.Frame):
     def __init__(self, parent):
         tk.Frame.__init__(self, parent)
         self.parent = parent
