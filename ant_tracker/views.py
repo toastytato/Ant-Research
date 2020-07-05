@@ -16,43 +16,59 @@ class SidePanelView(tk.Frame):
         self.parent = parent
         self.bg_color = bgcolor
 
-        # widget initializations
-        self.hsv_slider_frame = tk.LabelFrame(self, text="HSV Tracker Ranges", padx=5, pady=5)
-        self.hsv_slider_frame.grid(row=0, column=0, columnspan=2, sticky=tk.N)
+        self.trackers_frame = tk.LabelFrame(self, text='Trackers')
+        self.trackers_frame.grid()
+
+        self.trackers_nb = ttk.Notebook(self.trackers_frame)
+        self.trackers_nb.grid()
+
+        self.hsv_slider_frame = tk.Frame(self.trackers_nb, padx=5, pady=5)
+        self.hsv_slider_frame.grid()
         self.hsv_slider_frame.configure(background=self.bg_color)
 
-        # create the GUI for changing HSV mask ranges
         self.slider_names = ['low_h', 'high_h', 'low_s', 'high_s', 'low_v', 'high_v']
         self.num_sliders = len(self.slider_names)
         self.sliders = []
         self.init_sliders(config)
 
-        self.motion_sliders_frame = tk.LabelFrame(self, text='MotionTracker Controls', padx=5)
-        self.motion_sliders_frame.grid(row=1, column=0, columnspan=2)
+        self.motion_sliders_frame = tk.Frame(self.trackers_nb, padx=5)
+        self.motion_sliders_frame.grid()
         self.motion_sliders_frame.configure(background=self.bg_color)
-        self.motion_slider = tk.Scale(self.motion_sliders_frame, from_=0, to=200, orient='horizontal')
+
+        self.motion_slider = tk.Scale(self.motion_sliders_frame, from_=0, to=500, orient='horizontal')
         self.motion_slider.grid()
         self.motion_slider.columnconfigure(0, weight=1)
 
-        self.graph_tabs = ttk.Notebook(self)
+        self.trackers_nb.add(self.hsv_slider_frame, text='HSV')
+        self.trackers_nb.add(self.motion_sliders_frame, text='Motion')
+
+        self.graph_nb = ttk.Notebook(self)
         self.graph_names = ['Angle', 'Position', 'Other']
         self.graphs = {}
         for name in self.graph_names:
-            self.graphs[name] = (Graph(self, name))
-            self.graph_tabs.add(self.graphs[name], text=name)
-        self.graph_tabs.grid(row=2, column=0, sticky=tk.N)
+            self.graphs[name] = (Graph(self.graph_nb, name))
+            self.graph_nb.add(self.graphs[name], text=name)
+        self.graph_nb.grid(column=0, sticky=tk.N)
 
         self.quit_button = tk.Button(self, text="Exit")
-        self.quit_button.grid(row=3, column=0)
+        self.quit_button.grid(column=0)
 
-        self.grid_rowconfigure(2, weight=1)
+        # self.grid_rowconfigure(2, weight=1)
 
     def init_sliders(self, config):
         for i in range(self.num_sliders):
-            self.sliders.append(tk.Scale(self.hsv_slider_frame, from_=0, to=255))
+            self.sliders.append(tk.Scale(self.hsv_slider_frame,
+                                         from_=0, to=255,
+                                         orient='vertical'))
             self.sliders[i].set(int(config.get('HSV', self.slider_names[i])))
-            self.sliders[i].pack(side="left")
+            self.sliders[i].grid(row=0, column=i)
             self.sliders[i].configure(background=self.bg_color)
+            text = tk.Label(self.hsv_slider_frame, text=self.slider_names[i])
+            text.grid(row=1, column=i)
+
+    @property
+    def motion_slider_pos(self):
+        return self.motion_slider.get()
 
     @property
     def low_colors(self):
@@ -78,11 +94,13 @@ class Graph(tk.Frame):
         self.graph = FigureCanvasTkAgg(self.fig, master=self)
         self.graph.get_tk_widget().pack()
 
-    def update_values(self, y_val):
+    def increment_frames(self):
         self.frames_cnt += 1
+
+    def update_values(self, y_val):
         self.x_axis.append(int(self.frames_cnt))
         self.y_axis.append(int(y_val))
-        if len(self.x_axis) > 40:  # window of values for graph
+        if len(self.x_axis) > 50:  # window of values for graph
             self.x_axis.pop(0)
             self.y_axis.pop(0)
 
@@ -168,8 +186,6 @@ class FileScrollTab(tk.Frame):
 
 
 # TODO: -Make sure videos scale toView the right size
-#       -Click on video frame to change overlay
-#       -Be able to choose source of video
 class VideoFrameView(tk.Frame):
     def __init__(self, parent):
         tk.Frame.__init__(self, parent)

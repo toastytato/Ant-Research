@@ -96,18 +96,21 @@ class TrackerHSV(PCA):
         super().__init__()
         self.output = None
         self.mask = None
-        self.frame = None
         self.has_lock = False
 
-        self.color_low = 0, 0, 0
-        self.color_high = 255, 255, 255
+        self.color_ranges = {'low_h': 0,
+                             'low_s': 0,
+                             'low_v': 0,
+                             'high_h': 255,
+                             'high_s': 255,
+                             'high_v': 255}
 
     def update(self, frame):
-        self.frame = frame
-        self.frame = cv2.flip(self.frame, 1)
-        blurred = cv2.GaussianBlur(self.frame, (11, 11), 0)
+        self.output = frame.copy()
+        blurred = cv2.GaussianBlur(self.output, (11, 11), 0)
         hsv = cv2.cvtColor(blurred, cv2.COLOR_BGR2HSV)
 
+        self.set_mask_ranges()
         # create the bitwise masks
         self.mask = cv2.inRange(hsv, self.color_low, self.color_high)
         self.mask = cv2.erode(self.mask, None, iterations=1)
@@ -133,9 +136,14 @@ class TrackerHSV(PCA):
 
         return self.output
 
-    def set_mask_ranges(self, color_low, color_high):
-        self.color_low = color_low
-        self.color_high = color_high
+    def set_mask_ranges(self):
+        self.color_low = (self.color_ranges['low_h'],
+                          self.color_ranges['low_s'],
+                          self.color_ranges['low_v'],)
+        self.color_high = (self.color_ranges['high_h'],
+                           self.color_ranges['high_s'],
+                           self.color_ranges['high_v'],)
+        print(self.color_ranges)
 
 
 class TrackerMotion(PCA):
@@ -145,6 +153,7 @@ class TrackerMotion(PCA):
         self.has_lock = False
         self.mask = None
         self.result = None
+        self.min_area = 100
         self.pos = (0, 0)
 
     def update(self, frame):
@@ -158,13 +167,12 @@ class TrackerMotion(PCA):
 
         valid_cnts = []
         best_cnt = None
-        min_area = 100
         min_dist = 10000  # arbitrary large number, preferably larger than frame size
         best_pos = (0, 0)
         self.has_lock = False
 
         for c in cnts:
-            if cv2.contourArea(c) < min_area:  # skip objects that are probably noise
+            if cv2.contourArea(c) < self.min_area:  # skip objects that are probably noise
                 continue
             valid_cnts.append(c)
 
@@ -192,13 +200,16 @@ class TrackerMotion(PCA):
                 rect_color = red
                 if c is best_cnt:
                     rect_color = green
-                # cv2.rectangle(self.result, (x, y), (x + w, y + h), rect_color, 2)
+                cv2.rectangle(self.result, (x, y), (x + w, y + h), rect_color, 2)
 
             super().calculate(super().contour_to_mask(best_cnt, self.mask.shape))
             # cv2.arrowedLine(self.result, tuple(super().velocity[0]), tuple(super().velocity[1]), red, 2)
             cv2.polylines(self.result, [super().get_rectangle()], 1, green, 2)
 
         return self.result
+
+    def set_filter_thresh(self, thresh):
+        self.min_area = thresh
 
     @staticmethod
     def calc_distance(pt1, pt2):
@@ -210,64 +221,68 @@ class VideoCapture:
     def __init__(self, source, side, speed=1):
         self.vid = cv2.VideoCapture(source)
         self.side = side
-        self.frame = None
-        self.mask = None
-        self.cnts = []
 
         self.save_video = None
-        self.tracked = None
-        self.mask = None
         self.framerate = self.vid.get(cv2.CAP_PROP_FPS)
         self.refresh_period = int(1000 / speed / self.framerate)
         self.width = self.vid.get(cv2.CAP_PROP_FRAME_WIDTH)
         self.height = self.vid.get(cv2.CAP_PROP_FRAME_HEIGHT)
 
-        self.cur_tracker = 'motion'
+        self.use_tracker = 'motion'
         self.trackers = {'hsv': TrackerHSV(),
                          'motion': TrackerMotion()}
 
-        self.cur_type = 0
-        self.frame_type = ['original', 'tracked', 'mask']
+        self.name_idx = 0
+        self.frame_names = ['original', 'tracked', 'mask']
+        self.frame = {}
+        for name in self.frame_names:
+            self.frame[name] = None
 
     @property
     def tracker(self):
-        return self.trackers[self.cur_tracker]
+        return self.trackers[self.use_tracker]
+
+    @property
+    def overlay(self):
+        return self.frame[self.use_overlay]
+
+    @property
+    def use_overlay(self):
+        return self.frame_names[self.name_idx]
+
+    @use_overlay.setter
+    def use_overlay(self, name):
+        self.name_idx = self.frame_names.index(name)
+
+    def cycle_overlay(self):
+        self.name_idx = (self.name_idx + 1) % len(self.frame_names)
 
     def update(self):
         if not self.vid.isOpened():
             print('Could not open video')
             return None
-        ret, self.frame = self.vid.read()
+        ret, frame = self.vid.read()
         if not ret:
             print('Cannot read video file')
             return None
 
-        if self.cur_tracker == 'none':
-            self.tracked = self.frame
-            self.mask = self.frame
+        self.frame['original'] = frame
+
+        if self.use_tracker == 'none':
+            self.frame['tracked'] = frame
+            self.frame['mask'] = frame
         else:
-            self.tracked = self.tracker.update(self.frame)
-            self.mask = cv2.addWeighted(self.frame, .5, cv2.cvtColor(self.tracker.mask,
-                                                                     cv2.COLOR_GRAY2BGR), .5, 0)
-
+            self.frame['tracked'] = self.tracker.update(frame)
+            self.frame['mask'] = cv2.addWeighted(self.frame['tracked'], .5,
+                                                 cv2.cvtColor(self.tracker.mask,
+                                                              cv2.COLOR_GRAY2BGR), .5, 0)
         return True
-
-    def cycle_overlay(self):
-        self.cur_type = (self.cur_type + 1) % len(self.frame_type)
 
     def has_track(self):
         return self.tracker.has_lock
 
     def get_frame(self):
-        vid_type = self.frame_type[self.cur_type]
-        if vid_type == "original":
-            return cv2.cvtColor(self.frame, cv2.COLOR_BGR2RGB)  # frame is in BGR, tkinter needs RGB
-        elif vid_type == 'tracked':
-            return cv2.cvtColor(self.tracked, cv2.COLOR_BGR2RGB)
-        elif vid_type == "mask":
-            return cv2.cvtColor(self.mask, cv2.COLOR_BGR2RGB)
-        else:
-            return cv2.cvtColor(self.frame, cv2.COLOR_BGR2RGB)
+        return cv2.cvtColor(self.overlay, cv2.COLOR_BGR2RGB)
 
     def start_record(self, video_name):
         fourcc = cv2.VideoWriter_fourcc(*'XVID')
@@ -279,7 +294,7 @@ class VideoCapture:
         self.save_video.release()
 
     def capture_frame(self):
-        self.save_video.write(self.frame)
+        self.save_video.write(self.frame['tracked'])
 
     @staticmethod
     def generate_vid_name(data_log):

@@ -15,9 +15,9 @@ class MainController(tk.Frame):
 
         ant_url = r'..\\data\\antvideo.mp4'
         camera_source = 0
-        self.left_video = camera.VideoCapture(ant_url, side='left', speed=8)
-        self.right_video = camera.VideoCapture(camera_source, side='right')
-        self.graph_refresh_period = 100  # in milliseconds
+        self.left_video = camera.VideoCapture(ant_url, side='left', speed=1)
+        self.right_video = camera.VideoCapture(ant_url, side='right')
+        self.graph_refresh_period = self.left_video.refresh_period * 4
 
         self.data_log = data_handler.DataLog()
 
@@ -33,7 +33,12 @@ class MainController(tk.Frame):
         self.panelView = SidePanelView(self, self.panelModel.config)
         self.panelView.grid(row=0, column=1, rowspan=2, sticky='nsew')
         self.panelView.configure(background=self.bg_color)
-        [slider.bind('<ButtonRelease-1>', self.sliders_event) for slider in self.panelView.sliders]
+        self.panelView.trackers_nb.select(self.panelView.motion_sliders_frame)
+        self.panelView.trackers_nb.bind('<Button-1>', self.tracker_select_event)
+        self.panelView.motion_slider.bind('<Button-1>', self.motion_sliders_event)
+        self.panelView.motion_slider.bind('<ButtonRelease-1>', self.motion_sliders_event)
+        [slider.bind('<Button-1>', self.hsv_sliders_press) for slider in self.panelView.sliders]
+        [slider.bind('<ButtonRelease-1>', self.hsv_sliders_release) for slider in self.panelView.sliders]
         self.panelView.quit_button.bind('<ButtonRelease-1>', self.exit)
 
         self.navModel = NavigationModel(self.data_log)
@@ -61,7 +66,6 @@ class MainController(tk.Frame):
         self.master.protocol("WM_DELETE_WINDOW", self.exit)
         self.refresh(self.left_video)
         self.refresh(self.right_video)
-        # self.refresh_right()
         self.animate_graphs()
 
     # ---File Navigator Functions---
@@ -144,10 +148,30 @@ class MainController(tk.Frame):
 
     # ---Side Panel Functions---
 
-    def sliders_event(self, event):
+    def tracker_select_event(self, event):
+        nb = self.panelView.trackers_nb
+        clicked_tab = nb.tk.call(nb._w, "identify", "tab", event.x, event.y)
+        print(clicked_tab)
+        tracker = list(self.left_video.trackers.keys())[clicked_tab]
+        self.left_video.use_tracker = tracker
+        print(tracker)
+
+    def hsv_sliders_press(self, event):
+        slider_idx = self.panelView.sliders.index(event.widget)
+        self.panelModel.active_slider_id = self.panelView.slider_names[slider_idx]
+        self.panelModel.active_slider = event.widget
+        print(self.panelModel.active_slider_id)
         print('changed slider value')
-        self.left_video.trackers['hsv'].set_mask_ranges(self.panelView.low_colors,
-                                                        self.panelView.high_colors)
+
+    def hsv_sliders_release(self, event):
+        self.panelModel.active_slider_id = None
+        self.panelModel.active_slider = None
+        print('release')
+
+    def motion_sliders_event(self, event):
+        print('changed motion slider')
+        self.left_video.trackers['motion'].set_filter_thresh(self.panelView.motion_slider_pos)
+        self.right_video.trackers['motion'].set_filter_thresh(self.panelView.motion_slider_pos)
 
     def animate_graphs(self):
         # call animate graph function using animate period and check if there is a lock on an object
@@ -155,7 +179,7 @@ class MainController(tk.Frame):
             if self.left_video.has_track():
                 self.panelView.graphs['Angle'].update_values(self.left_video.tracker.angle)
                 self.panelView.graphs['Position'].update_values(self.left_video.tracker.position[0])
-                if self.panelView.graph_tabs.tab(self.panelView.graph_tabs.select(), 'text') == name:
+                if self.panelView.graph_nb.tab(self.panelView.graph_nb.select(), 'text') == name:
                     self.panelView.graphs[name].animate()
         self.record_data()
         self.master.after(self.graph_refresh_period, self.animate_graphs)
@@ -179,10 +203,16 @@ class MainController(tk.Frame):
         if self.vidModel.is_recording:
             video.capture_frame()
 
+        if self.panelModel.active_slider_id is not None:
+            slider_id = self.panelModel.active_slider_id
+            slider_val = self.panelModel.active_slider.get()
+            self.left_video.trackers['hsv'].color_ranges[slider_id] = slider_val
+
         if video.update() is not None:
             frame = video.get_frame()
             if video.side == 'left':
                 self.vidView.refresh_left(frame)
+                self.panelView.graphs['Angle'].increment_frames()
             elif video.side == 'right':
                 self.vidView.refresh_right(frame)
         self.master.after(video.refresh_period, self.refresh, video)

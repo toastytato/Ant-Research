@@ -16,6 +16,8 @@ class SidePanelModel:
         self.log_rate = 12
         self.is_logging = False
 
+        self.active_slider_id = None
+        self.active_slider = None
         self.frames_cnt = 0
 
         self.config_path = r'..\data\config.ini'
