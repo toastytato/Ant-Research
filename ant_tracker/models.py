@@ -2,11 +2,13 @@ import tkinter as tk
 from tkinter import ttk
 import pandas as pd
 from configparser import ConfigParser
+import cv2
 from PIL import ImageTk, Image
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from ant_tracker import data_handler
 from ant_tracker import camera
+
 
 # In charge of holding and manipulating the data behind the UI elements
 
@@ -16,7 +18,8 @@ class SidePanelModel:
         self.log_rate = 12
         self.is_logging = False
 
-        self.active_slider_id = None
+        self.active_tab = None
+        self.active_slider_name = None
         self.active_slider = None
         self.frames_cnt = 0
 
@@ -24,9 +27,11 @@ class SidePanelModel:
         self.config = ConfigParser()
         self.config.read(self.config_path)
 
-    def save_settings(self, slider_names, sliders):
+    # fix the data passing between this and controller
+    def save_settings(self, slider_names, sliders, otherslider):
         for i in range(len(slider_names)):
-            self.config.set('HSV', slider_names[i], str(sliders[i].get()))
+            self.config.set('HSV', slider_names['HSV'][i], str(sliders[i].get()))
+            self.config.set('Motion', 'noise thresh', str(otherslider.get()))
 
         with open(self.config_path, 'w') as f:
             self.config.write(f)
@@ -83,5 +88,17 @@ class ViewClipWindow(tk.Toplevel):
 class VideoFrameModel:
     def __init__(self):
         self.is_recording = False
-        self.min_x = 720
+        self.height_cap = 720
 
+    def init_video_dimensions(self, height1, height2):
+        print(height1, height2)
+        smallest_height = min((height1, height2))
+        if self.height_cap > smallest_height:
+            self.height_cap = smallest_height
+
+    def resize_frame(self, frame):
+        scale_percent = self.height_cap / frame.shape[0]
+        width = int(frame.shape[1] * scale_percent)
+        height = int(frame.shape[0] * scale_percent)
+        output = cv2.resize(frame, (width, height))
+        return output

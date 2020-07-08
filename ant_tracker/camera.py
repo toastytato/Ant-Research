@@ -110,7 +110,7 @@ class TrackerHSV(PCA):
         blurred = cv2.GaussianBlur(self.output, (11, 11), 0)
         hsv = cv2.cvtColor(blurred, cv2.COLOR_BGR2HSV)
 
-        self.set_mask_ranges()
+        # self.set_mask_ranges()
         # create the bitwise masks
         self.mask = cv2.inRange(hsv, self.color_low, self.color_high)
         self.mask = cv2.erode(self.mask, None, iterations=1)
@@ -137,13 +137,13 @@ class TrackerHSV(PCA):
         return self.output
 
     def set_mask_ranges(self):
+        print(self.color_ranges)
         self.color_low = (self.color_ranges['low_h'],
                           self.color_ranges['low_s'],
                           self.color_ranges['low_v'],)
         self.color_high = (self.color_ranges['high_h'],
                            self.color_ranges['high_s'],
                            self.color_ranges['high_v'],)
-        print(self.color_ranges)
 
 
 class TrackerMotion(PCA):
@@ -204,7 +204,7 @@ class TrackerMotion(PCA):
 
             super().calculate(super().contour_to_mask(best_cnt, self.mask.shape))
             # cv2.arrowedLine(self.result, tuple(super().velocity[0]), tuple(super().velocity[1]), red, 2)
-            cv2.polylines(self.result, [super().get_rectangle()], 1, green, 2)
+            # cv2.polylines(self.result, [super().get_rectangle()], 1, green, 2)
 
         return self.result
 
@@ -239,11 +239,11 @@ class VideoCapture:
             self.frame[name] = None
 
     @property
-    def tracker(self):
+    def cur_tracker(self):
         return self.trackers[self.use_tracker]
 
     @property
-    def overlay(self):
+    def cur_overlay(self):
         return self.frame[self.use_overlay]
 
     @property
@@ -272,17 +272,17 @@ class VideoCapture:
             self.frame['tracked'] = frame
             self.frame['mask'] = frame
         else:
-            self.frame['tracked'] = self.tracker.update(frame)
+            self.frame['tracked'] = self.cur_tracker.update(frame)
             self.frame['mask'] = cv2.addWeighted(self.frame['tracked'], .5,
-                                                 cv2.cvtColor(self.tracker.mask,
+                                                 cv2.cvtColor(self.cur_tracker.mask,
                                                               cv2.COLOR_GRAY2BGR), .5, 0)
         return True
 
     def has_track(self):
-        return self.tracker.has_lock
+        return self.cur_tracker.has_lock
 
     def get_frame(self):
-        return cv2.cvtColor(self.overlay, cv2.COLOR_BGR2RGB)
+        return cv2.cvtColor(self.cur_overlay, cv2.COLOR_BGR2RGB)
 
     def start_record(self, video_name):
         fourcc = cv2.VideoWriter_fourcc(*'XVID')

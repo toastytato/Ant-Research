@@ -26,10 +26,13 @@ class SidePanelView(tk.Frame):
         self.hsv_slider_frame.grid()
         self.hsv_slider_frame.configure(background=self.bg_color)
 
-        self.slider_names = ['low_h', 'high_h', 'low_s', 'high_s', 'low_v', 'high_v']
-        self.num_sliders = len(self.slider_names)
-        self.sliders = []
-        self.init_sliders(config)
+        self.tab_names = ['HSV', 'Motion']
+        self.slider_names = {self.tab_names[0]: ['low_h', 'high_h', 'low_s', 'high_s', 'low_v', 'high_v'],
+                             self.tab_names[1]: ['thresh']}
+
+        self.num_hsv_sliders = len(self.slider_names['HSV'])
+        self.hsv_sliders = []
+        self.init_hsv_sliders(config)
 
         self.motion_sliders_frame = tk.Frame(self.trackers_nb, padx=5)
         self.motion_sliders_frame.grid()
@@ -38,9 +41,10 @@ class SidePanelView(tk.Frame):
         self.motion_slider = tk.Scale(self.motion_sliders_frame, from_=0, to=500, orient='horizontal')
         self.motion_slider.grid()
         self.motion_slider.columnconfigure(0, weight=1)
+        self.init_motion_sliders(config)
 
-        self.trackers_nb.add(self.hsv_slider_frame, text='HSV')
-        self.trackers_nb.add(self.motion_sliders_frame, text='Motion')
+        self.trackers_nb.add(self.hsv_slider_frame, text=self.tab_names[0])
+        self.trackers_nb.add(self.motion_sliders_frame, text=self.tab_names[1])
 
         self.graph_nb = ttk.Notebook(self)
         self.graph_names = ['Angle', 'Position', 'Other']
@@ -55,16 +59,19 @@ class SidePanelView(tk.Frame):
 
         # self.grid_rowconfigure(2, weight=1)
 
-    def init_sliders(self, config):
-        for i in range(self.num_sliders):
-            self.sliders.append(tk.Scale(self.hsv_slider_frame,
-                                         from_=0, to=255,
-                                         orient='vertical'))
-            self.sliders[i].set(int(config.get('HSV', self.slider_names[i])))
-            self.sliders[i].grid(row=0, column=i)
-            self.sliders[i].configure(background=self.bg_color)
-            text = tk.Label(self.hsv_slider_frame, text=self.slider_names[i])
+    def init_hsv_sliders(self, config):
+        for i in range(self.num_hsv_sliders):
+            self.hsv_sliders.append(tk.Scale(self.hsv_slider_frame,
+                                             from_=0, to=255,
+                                             orient='vertical'))
+            self.hsv_sliders[i].set(int(config.get('HSV', self.slider_names['HSV'][i])))
+            self.hsv_sliders[i].grid(row=0, column=i)
+            self.hsv_sliders[i].configure(background=self.bg_color)
+            text = tk.Label(self.hsv_slider_frame, text=self.slider_names['HSV'][i])
             text.grid(row=1, column=i)
+
+    def init_motion_sliders(self, config):
+        self.motion_slider.set(int(config.get('Motion', 'noise thresh')))
 
     @property
     def motion_slider_pos(self):
@@ -72,11 +79,11 @@ class SidePanelView(tk.Frame):
 
     @property
     def low_colors(self):
-        return tuple(self.sliders[i].get() for i in range(0, self.num_sliders) if i % 2 == 0)
+        return tuple(self.hsv_sliders[i].get() for i in range(0, self.num_hsv_sliders) if i % 2 == 0)
 
     @property
     def high_colors(self):
-        return tuple(self.sliders[i].get() for i in range(0, self.num_sliders) if i % 2 == 1)
+        return tuple(self.hsv_sliders[i].get() for i in range(0, self.num_hsv_sliders) if i % 2 == 1)
 
 
 # TODO: Show different data
@@ -185,7 +192,6 @@ class FileScrollTab(tk.Frame):
         self.file_list.event_generate("<<ListboxSelect>>")
 
 
-# TODO: -Make sure videos scale toView the right size
 class VideoFrameView(tk.Frame):
     def __init__(self, parent):
         tk.Frame.__init__(self, parent)
