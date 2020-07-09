@@ -218,9 +218,10 @@ class TrackerMotion(PCA):
 
 
 class VideoCapture:
-    def __init__(self, source, side, speed=1):
+    def __init__(self, source, side, speed=1, flip=False):
         self.vid = cv2.VideoCapture(source)
         self.side = side
+        self.flip = flip
 
         self.save_video = None
         self.framerate = self.vid.get(cv2.CAP_PROP_FPS)
@@ -263,8 +264,12 @@ class VideoCapture:
             return None
         ret, frame = self.vid.read()
         if not ret:
-            print('Cannot read video file')
+            print('Video Done')
+            self.vid.set(cv2.CAP_PROP_POS_FRAMES, 0)
             return None
+
+        if self.flip:
+            frame = cv2.flip(frame, 1)
 
         self.frame['original'] = frame
 
@@ -294,7 +299,7 @@ class VideoCapture:
         self.save_video.release()
 
     def capture_frame(self):
-        self.save_video.write(self.frame['tracked'])
+        self.save_video.write(cv2.cvtColor(self.frame['tracked'], cv2.COLOR_BGR2RGB))
 
     @staticmethod
     def generate_vid_name(data_log):

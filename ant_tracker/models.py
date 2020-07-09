@@ -31,7 +31,8 @@ class SidePanelModel:
     def save_settings(self, slider_names, sliders, otherslider):
         for i in range(len(slider_names)):
             self.config.set('HSV', slider_names['HSV'][i], str(sliders[i].get()))
-            self.config.set('Motion', 'noise thresh', str(otherslider.get()))
+
+        self.config.set('Motion', 'noise thresh', str(otherslider.get()))
 
         with open(self.config_path, 'w') as f:
             self.config.write(f)
@@ -46,7 +47,9 @@ class NavigationModel:
         self.is_editing = False
 
         self.sel_date = ''
+        self.sel_date_idx = None
         self.sel_entry = ''
+        self.sel_entry_idx = None
 
     def export_excel(self):
         excel_entry = []
@@ -63,6 +66,7 @@ class NavigationModel:
         df.to_excel(r'..\\data\\exported_data.xlsx', index=False, header=True)
 
 
+# TODO: show both video feeds with tabs
 class ViewClipWindow(tk.Toplevel):
     def __init__(self, parent, name):
         tk.Toplevel.__init__(self, parent)

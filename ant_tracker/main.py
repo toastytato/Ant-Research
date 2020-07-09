@@ -10,13 +10,17 @@ class MainController(tk.Frame):
         tk.Frame.__init__(self, master)
         self.master = master
         self.master.title("Ant tracking interface")
-        self.bg_color = "SystemButtonFace"  # default color
-        self.configure(background=self.bg_color)
+        bg_color = "SystemButtonFace"  # default color
+        self.configure(background=bg_color)
 
         ant_url = r'..\\data\\antvideo.mp4'
         camera_source = 0
-        self.left_video = camera.VideoCapture(ant_url, side='left', speed=2)
-        self.right_video = camera.VideoCapture(camera_source, side='right')
+        self.left_video = camera.VideoCapture(source=ant_url,
+                                              side='left',
+                                              speed=1)
+        self.right_video = camera.VideoCapture(source=camera_source,
+                                               side='right',
+                                               flip=True)
         self.graph_refresh_period = self.left_video.refresh_period * 4
 
         self.data_log = data_handler.DataLog()
@@ -25,7 +29,7 @@ class MainController(tk.Frame):
         self.vidModel.init_video_dimensions(self.left_video.height, self.right_video.height)
         self.vidView = VideoFrameView(self)
         self.vidView.grid(row=0, column=0, sticky='nsew')
-        self.vidView.configure(background=self.bg_color)
+        self.vidView.configure(background=bg_color)
         self.vidView.recordButton.bind('<Button-1>', self.record_event)
         self.vidView.leftVideo.bind('<Button-1>', self.on_left_video_click)
         self.vidView.rightVideo.bind('<Button-1>', self.on_right_video_click)
@@ -34,7 +38,7 @@ class MainController(tk.Frame):
         self.panelModel.active_tab = 'Motion'
         self.panelView = SidePanelView(self, self.panelModel.config)
         self.panelView.grid(row=0, column=1, rowspan=2, sticky='nsew')
-        self.panelView.configure(background=self.bg_color)
+        self.panelView.configure(background=bg_color)
         self.panelView.trackers_nb.select(self.panelView.motion_sliders_frame)
         self.panelView.trackers_nb.bind('<Button-1>', self.tracker_tab_select_event)
         self.panelView.motion_slider.bind('<Button-1>', self.motion_sliders_press)
@@ -54,7 +58,7 @@ class MainController(tk.Frame):
         self.navModel = NavigationModel(self.data_log)
         self.navView = NavigationView(self)
         self.navView.grid(row=1, column=0, sticky='nsew')
-        self.navView.configure(background=self.bg_color)
+        self.navView.configure(background=bg_color)
 
         self.navView.date_tab.update_list(self.navModel.date_list)
         self.navView.date_tab.file_list.bind('<<ListboxSelect>>', self.on_date_select)
@@ -74,6 +78,7 @@ class MainController(tk.Frame):
         self.rowconfigure(1, weight=1)
 
         self.master.protocol("WM_DELETE_WINDOW", self.exit)
+
         self.refresh(self.left_video)
         self.refresh(self.right_video)
         self.animate_graphs()
@@ -84,7 +89,8 @@ class MainController(tk.Frame):
         date_list = self.navView.date_tab.file_list
         if date_list.curselection() == ():  # nothing selected
             return
-        self.navModel.sel_date = date_list.get(date_list.curselection())
+        self.navModel.sel_date_idx = date_list.curselection()
+        self.navModel.sel_date = date_list.get(self.navModel.sel_date_idx)
         entries = self.data_log.get_entries(self.navModel.sel_date)
         self.navView.entry_tab.update_list(entries)
 
@@ -92,7 +98,8 @@ class MainController(tk.Frame):
         entry_list = self.navView.entry_tab.file_list
         if entry_list.curselection() == ():  # nothing selected
             return
-        self.navModel.sel_entry = entry_list.get(entry_list.curselection())
+        self.navModel.sel_entry_idx = entry_list.curselection()
+        self.navModel.sel_entry = entry_list.get(self.navModel.sel_entry_idx)
         print(self.navModel.sel_entry)
         note = self.data_log.get_entry(self.navModel.sel_date, self.navModel.sel_entry)['notes']
         if note is not None:
@@ -119,7 +126,7 @@ class MainController(tk.Frame):
         self.navModel.is_editing = not self.navModel.is_editing
 
     def view_clip_event(self, event):
-        url = self.data_log.get_entry(self.navModel.sel_date, self.navModel.sel_entry)['url']
+        url = self.data_log.get_entry(self.navModel.sel_date, self.navModel.sel_entry)['url1']
         self.clip_viewer = ViewClipWindow(self, url)
 
     def export_excel_event(self, event):
@@ -128,12 +135,23 @@ class MainController(tk.Frame):
     def del_entry_event(self, event):
         deleted = self.data_log.del_entry(self.navModel.sel_date, self.navModel.sel_entry)
         if deleted:  # deletion was successful
-            if self.data_log.get_entries(self.navModel.sel_date) is None:  # if only entry is deleted
-                self.navView.reload_dates(self.data_log.get_dates())
-                self.navView.date_tab.set_bottom_selection()
+            dates = self.data_log.get_dates()
+            if len(dates) == 0:     # if every entry is deleted
+                print('all empty')
+                self.navView.reload_dates([])   # put empty list into both tabs
+                self.navView.reload_entries([])
+            elif self.data_log.get_entries(self.navModel.sel_date) is None:  # if the last entry for date is deleted
+                self.navView.reload_dates(dates)
+                if self.navModel.sel_date_idx >= self.navView.date_tab.size():
+                    self.navView.date_tab.set_selection('end')
+                else:  # if the deleted wasn't the last selection
+                    self.navView.date_tab.set_selection(self.navModel.sel_date_idx)
             else:  # if entries still exist
                 self.navView.reload_entries(self.data_log.get_entries(self.navModel.sel_date))
-                self.navView.entry_tab.set_bottom_selection()
+                if self.navModel.sel_entry_idx >= self.navView.entry_tab.size():
+                    self.navView.entry_tab.set_selection('end')
+                else:   # if the deleted wasn't the last selection
+                    self.navView.entry_tab.set_selection(self.navModel.sel_entry_idx)
 
     # ---Detail Editor Window Functions---
 
@@ -146,9 +164,12 @@ class MainController(tk.Frame):
 
     def save_entry_event(self, event):
         notes = self.details_editor.textbox.get('1.0', 'end-1c')  # rm 1 char from end b/c it inserts a /n
-        date_key, _ = self.data_log.save_entry(note=notes, url=self.left_video.generate_vid_name(self.data_log))
+        date_key, _ = self.data_log.save_entry(note=notes,
+                                               url=self.left_video.generate_vid_name(self.data_log))
         self.data_log.print_entry()
         self.navView.reload_dates(self.data_log.get_dates())
+        self.navView.date_tab.set_selection('end')
+        self.navView.entry_tab.set_selection('end')
         self.details_editor.destroy()
         print('saved')
 
@@ -223,7 +244,7 @@ class MainController(tk.Frame):
 
     def refresh(self, video):
         if self.vidModel.is_recording:
-            video.capture_frame()
+            self.left_video.capture_frame()
 
         if self.panelModel.active_slider_name is not None:
             slider_id = self.panelModel.active_slider_name

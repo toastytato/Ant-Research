@@ -163,7 +163,6 @@ class NavigationView(tk.Frame):
         self.date_tab.update_list(date_list)
 
 
-# TODO Keep selection in same index on delete if not at the end
 class FileScrollTab(tk.Frame):
     def __init__(self, parent, title):
         tk.Frame.__init__(self, parent)
@@ -187,8 +186,8 @@ class FileScrollTab(tk.Frame):
         for i in range(len(curr_list)):
             self.file_list.insert('end', curr_list[i])
 
-    def set_bottom_selection(self):
-        self.file_list.select_set('end')
+    def set_selection(self, idx):
+        self.file_list.select_set(idx)
         self.file_list.event_generate("<<ListboxSelect>>")
 
 

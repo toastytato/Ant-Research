@@ -4,17 +4,20 @@ import pandas as pd
 import os
 
 
-# TODO: export to Excel
 class DataLog:
     def __init__(self):
         # try to read file
         # if empty, initiate log array
         self.data = {}
+
+        self.id = None
         self.note = ''
-        self.url = ''
+        self.url1 = ''
+        self.url2 = ''
         self.x = []
         self.y = []
         self.angle = []
+
         self.entry = {}
 
         self.json_path = r'..\data\data_logs.json'
@@ -30,7 +33,7 @@ class DataLog:
     # returns the date and time it was saved to
     def save_entry(self, note, url):
         self.note = note
-        self.url = url
+        self.url1 = url
         now = datetime.now()
         date_key = now.strftime('%m/%d/%Y')
         time_key = now.strftime('%H:%M:%S')
@@ -38,7 +41,7 @@ class DataLog:
         self.entry['x'] = str(self.x)
         self.entry['y'] = str(self.y)
         self.entry['angle'] = str(self.angle)
-        self.entry['url'] = self.url
+        self.entry['url1'] = self.url1
         # reset data arrays after it has been added to entry
         self.x = []
         self.y = []
@@ -91,7 +94,7 @@ class DataLog:
             print('nothing selected')
             return False
 
-        name = popped['url']
+        name = popped['url1']
         video_url = r'..\\clips\\' + name + '.avi'
         # os.remove(video_url)
 
