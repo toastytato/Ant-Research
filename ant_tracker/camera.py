@@ -225,6 +225,8 @@ class VideoCapture:
 
         self.save_video = None
         self.framerate = self.vid.get(cv2.CAP_PROP_FPS)
+        if self.framerate == 0:
+            self.framerate = 1
         self.refresh_period = int(1000 / speed / self.framerate)
         self.width = self.vid.get(cv2.CAP_PROP_FRAME_WIDTH)
         self.height = self.vid.get(cv2.CAP_PROP_FRAME_HEIGHT)
