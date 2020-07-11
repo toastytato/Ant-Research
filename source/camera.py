@@ -1,7 +1,6 @@
 import cv2
 import numpy as np
 import imutils
-import time
 import math
 from datetime import datetime
 
@@ -307,11 +306,8 @@ class VideoCapture:
     def generate_vid_name(self, data_log):
         date = datetime.today().strftime('%m-%d-%Y')
         date_key = datetime.today().strftime('%m/%d/%Y')
-        try:
-            suffix = str(len(data_log.get_entries(date_key)))
-        except TypeError:
-            suffix = '0'
-            print('first entry for today')
+
+        suffix = str(data_log.generate_id(date_key))
 
         if self.side == 'left':
             suffix += 'a'

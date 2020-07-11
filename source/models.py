@@ -3,10 +3,10 @@ from tkinter import ttk
 import pandas as pd
 from configparser import ConfigParser
 import cv2
-from PIL import ImageTk, Image
-import matplotlib.pyplot as plt
-from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
-from source import data_handler
+# from PIL import ImageTk, Image
+# import matplotlib.pyplot as plt
+# from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+# from source import data_handler
 
 
 # In charge of holding and manipulating the data behind the UI elements

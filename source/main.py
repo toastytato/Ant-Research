@@ -91,7 +91,7 @@ class MainController(tk.Frame):
         date_list = self.navView.date_tab.file_list
         if date_list.curselection() == ():  # nothing selected
             return
-        self.navModel.sel_date_idx = date_list.curselection()
+        self.navModel.sel_date_idx = date_list.curselection()[0]
         self.navModel.sel_date = date_list.get(self.navModel.sel_date_idx)
         entries = self.data_log.get_entries(self.navModel.sel_date)
         self.navView.entry_tab.update_list(entries)
@@ -100,7 +100,7 @@ class MainController(tk.Frame):
         entry_list = self.navView.entry_tab.file_list
         if entry_list.curselection() == ():  # nothing selected
             return
-        self.navModel.sel_entry_idx = entry_list.curselection()
+        self.navModel.sel_entry_idx = entry_list.curselection()[0]
         self.navModel.sel_entry = entry_list.get(self.navModel.sel_entry_idx)
         print(self.navModel.sel_entry)
         note = self.data_log.get_entry(self.navModel.sel_date, self.navModel.sel_entry)['notes']
@@ -145,21 +145,24 @@ class MainController(tk.Frame):
         deleted = self.data_log.del_entry(self.navModel.sel_date, self.navModel.sel_entry)
         if deleted:  # deletion was successful
             dates = self.data_log.get_dates()
-            if len(dates) == 0:     # if every entry is deleted
+            if len(dates) == 0:  # if every entry is deleted
                 print('all empty')
-                self.navView.reload_dates([])   # put empty list into both tabs
+                self.navView.reload_dates([])  # put empty list into both tabs
                 self.navView.reload_entries([])
             elif self.data_log.get_entries(self.navModel.sel_date) is None:  # if the last entry for date is deleted
                 self.navView.reload_dates(dates)
+                self.navView.reload_entries([])
                 if self.navModel.sel_date_idx >= self.navView.date_tab.size():
                     self.navView.date_tab.set_selection('end')
                 else:  # if the deleted wasn't the last selection
                     self.navView.date_tab.set_selection(self.navModel.sel_date_idx)
             else:  # if entries still exist
                 self.navView.reload_entries(self.data_log.get_entries(self.navModel.sel_date))
+                print('size: ', self.navView.entry_tab.size())
+                print('idx: ', self.navModel.sel_entry_idx)
                 if self.navModel.sel_entry_idx >= self.navView.entry_tab.size():
                     self.navView.entry_tab.set_selection('end')
-                else:   # if the deleted wasn't the last selection
+                else:  # if the deleted wasn't the last selection
                     self.navView.entry_tab.set_selection(self.navModel.sel_entry_idx)
 
     # ---Note Editor Window Functions---
@@ -172,11 +175,10 @@ class MainController(tk.Frame):
         self.details_editor.focus()
 
     def save_entry_event(self, event):
-        notes = self.details_editor.textbox.get('1.0', 'end-1c')  # rm 1 char from end b/c it inserts a /n
-        date_key, _ = self.data_log.save_entry(note=notes,
-                                               url1=self.left_video.generate_vid_name(self.data_log),
-                                               url2=self.right_video.generate_vid_name(self.data_log))
-        self.data_log.print_entry()
+        # rm 1 char from end of note b/c it inserts a newline by itself
+        self.data_log.save_entry(note=self.details_editor.textbox.get('1.0', 'end-1c'),
+                                 url1=self.left_video.generate_vid_name(self.data_log),
+                                 url2=self.right_video.generate_vid_name(self.data_log))
         self.navView.reload_dates(self.data_log.get_dates())
         self.navView.date_tab.set_selection('end')
         self.navView.entry_tab.set_selection('end')
@@ -194,7 +196,7 @@ class MainController(tk.Frame):
         tab_idx = nb.tk.call(nb._w, "identify", "tab", event.x, event.y)
         try:
             self.panelModel.active_tab = nb.tab(tab_idx, 'text')
-        except:
+        except:  # if you click somewhere not on the tab the program goes bamboozles
             return
         print(self.panelModel.active_tab)
         if self.panelModel.active_tab == 'HSV':

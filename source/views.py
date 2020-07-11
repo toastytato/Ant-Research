@@ -1,12 +1,10 @@
 import tkinter as tk
 from tkinter import ttk
-import pandas as pd
 from configparser import ConfigParser
 from source import camera
 from PIL import ImageTk, Image
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
-from datetime import datetime
 
 
 # In charge of the UI elements
@@ -217,6 +215,9 @@ class FileScrollTab(tk.Frame):
     def set_selection(self, idx):
         self.file_list.select_set(idx)
         self.file_list.event_generate("<<ListboxSelect>>")
+
+    def size(self):
+        return self.file_list.size()
 
 
 class VideoFrameView(tk.Frame):
