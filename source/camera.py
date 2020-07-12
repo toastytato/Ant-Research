@@ -199,11 +199,11 @@ class TrackerMotion(PCA):
                 rect_color = red
                 if c is best_cnt:
                     rect_color = green
-                cv2.rectangle(self.result, (x, y), (x + w, y + h), rect_color, 2)
+                # cv2.rectangle(self.result, (x, y), (x + w, y + h), rect_color, 2)
 
             super().calculate(super().contour_to_mask(best_cnt, self.mask.shape))
             # cv2.arrowedLine(self.result, tuple(super().velocity[0]), tuple(super().velocity[1]), red, 2)
-            # cv2.polylines(self.result, [super().get_rectangle()], 1, green, 2)
+            cv2.polylines(self.result, [super().get_rectangle()], 1, green, 2)
 
         return self.result
 
@@ -225,7 +225,7 @@ class VideoCapture:
         self.save_video = None
         self.framerate = self.vid.get(cv2.CAP_PROP_FPS)
         if self.framerate == 0:
-            self.framerate = 1
+            self.framerate = 24
         self.refresh_period = int(1000 / speed / self.framerate)
         self.width = self.vid.get(cv2.CAP_PROP_FRAME_WIDTH)
         self.height = self.vid.get(cv2.CAP_PROP_FRAME_HEIGHT)
@@ -259,6 +259,19 @@ class VideoCapture:
 
     def cycle_overlay(self):
         self.name_idx = (self.name_idx + 1) % len(self.frame_names)
+
+    def change_source(self, source):
+        self.vid.release()
+        if isinstance(source, str):
+            self.vid = cv2.VideoCapture(source)
+        else:
+            self.vid = cv2.VideoCapture(source, cv2.CAP_DSHOW)
+
+        self.framerate = self.vid.get(cv2.CAP_PROP_FPS)
+        if self.framerate == 0:
+            self.framerate = 24
+        print(self.framerate)
+        self.refresh_period = int(1000 / self.framerate)
 
     def update(self):
         if not self.vid.isOpened():
@@ -304,7 +317,7 @@ class VideoCapture:
         self.save_video.write(cv2.cvtColor(self.frame['tracked'], cv2.COLOR_BGR2RGB))
 
     def generate_vid_name(self, data_log):
-        date = datetime.today().strftime('%m-%d-%Y')
+        date_name = datetime.today().strftime('%m-%d-%Y')
         date_key = datetime.today().strftime('%m/%d/%Y')
 
         suffix = str(data_log.generate_id(date_key))
@@ -314,7 +327,7 @@ class VideoCapture:
         elif self.side == 'right':
             suffix += 'b'
 
-        name = date + '-' + suffix
+        name = date_name + '-' + suffix
         return name
 
     # Release the video source when the object is destroyed
@@ -327,6 +340,10 @@ class VideoPlayback:
     def __init__(self, name):
         url = r'..\\clips\\' + name + '.avi'
         self.vid = cv2.VideoCapture(url)
+        self.framerate = self.vid.get(cv2.CAP_PROP_FPS)
+        if self.framerate == 0:
+            self.framerate = 1
+        self.refresh_period = int(1000 / self.framerate)
 
     def get_frame(self):
         if not self.vid.isOpened():
@@ -341,11 +358,3 @@ class VideoPlayback:
 
 if __name__ == '__main__':
     pass
-
-# use motion to set bounding box
-# actual pos = motion tracker
-# compare motion tracker pos and reg tracker pos
-# use the motion track that is closest to the reg tracker
-# if reg track is too far from motion track, reset reg track
-# if motion track is gone, actual pos = reg track
-# once motion track is back, actual pos = motion track that's closest to reg track

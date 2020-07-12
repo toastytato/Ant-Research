@@ -66,9 +66,12 @@ class NavigationModel:
 
 
 class VideoFrameModel:
-    def __init__(self):
+    def __init__(self, source=0, tracker='none'):
         self.is_recording = False
         self.height_cap = 720
+        self.video_sources = range(3)
+        self.default_source = source
+        self.default_tracker = tracker
 
     def init_video_dimensions(self, height1, height2):
         print(height1, height2)

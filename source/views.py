@@ -104,6 +104,7 @@ class Graph(tk.Frame):
         self.x_axis = []
         self.y_axis = []
         self.frames_cnt = 0
+        self.seconds_cnt = 0
 
         self.fig = plt.figure(figsize=(3, 3))
         self.ax1 = self.fig.add_subplot(111)
@@ -112,6 +113,9 @@ class Graph(tk.Frame):
 
     def increment_frames(self):
         self.frames_cnt += 1
+
+    def increment_seconds(self):
+        self.seconds_cnt += 1
 
     def update_values(self, y_val):
         self.x_axis.append(int(self.frames_cnt))
@@ -131,8 +135,6 @@ class Graph(tk.Frame):
         self.graph.draw()
 
 
-# TODO: delete video on delete entry
-#       save video name based on 1 + last id #
 class NavigationView(tk.Frame):
     def __init__(self, parent):
         tk.Frame.__init__(self, parent)
@@ -225,34 +227,51 @@ class VideoFrameView(tk.Frame):
         tk.Frame.__init__(self, parent)
         self.parent = parent
 
-        self.topFrame = tk.LabelFrame(self)
-        self.topFrame.pack(side="top")
-
-        self.bottomFrame = tk.Frame(self)
-        self.bottomFrame.pack(side="bottom", padx=5, pady=5)
-
-        self.leftVideo = tk.Label(self.topFrame)
-        self.leftVideo.pack(side="left")
-
-        self.rightVideo = tk.Label(self.topFrame)
-        self.rightVideo.pack(side="right")
+        self.leftVideo = VideoControl(self)
+        self.leftVideo.grid(row=0, column=0)
+        self.rightVideo = VideoControl(self)
+        self.rightVideo.grid(row=0, column=1)
 
         self.record_text = tk.StringVar()
         self.record_text.set("Record")
-        self.recordButton = tk.Button(self.bottomFrame, textvariable=self.record_text)
-        self.recordButton.pack(side="bottom", fill="both")
+        self.recordButton = tk.Button(self, textvariable=self.record_text)
+        self.recordButton.grid(row=1, columnspan=2)
 
-    def refresh_left(self, frame):
+
+class VideoControl(tk.Frame):
+    def __init__(self, parent):
+        tk.Frame.__init__(self, parent)
+        self.video = tk.Label(self)
+        self.video.grid(row=0, column=0, columnspan=4)
+
+    def init_tracker_options(self, trackers):
+        self.sel_tracker = tk.StringVar()
+        self.sel_tracker.set(trackers[0])
+        self.tracker_menu = ttk.OptionMenu(self, self.sel_tracker, trackers[0], *trackers)
+        self.tracker_menu.grid(row=1, column=3,
+                               sticky='w')
+
+        tracker_label = tk.Label(self, text='Tracker:')
+        tracker_label.grid(row=1, column=2,
+                           sticky='e')
+
+    def init_source_options(self, sources):
+        self.sel_source = tk.StringVar()
+        self.sel_source.set(sources[0])
+        self.source_menu = ttk.OptionMenu(self, self.sel_source, sources[0], *sources)
+        self.source_menu.grid(row=1, column=1,
+                              sticky='w')
+
+        source_label = tk.Label(self, text='Source:')
+        source_label.grid(row=1, column=0,
+                          sticky='e')
+
+    def refresh(self, frame):
         frame = Image.fromarray(frame)
         frame = ImageTk.PhotoImage(image=frame)
-        self.leftVideo.img = frame
-        self.leftVideo.configure(image=frame)
+        self.video.img = frame
+        self.video.configure(image=frame)
 
-    def refresh_right(self, frame):
-        frame = Image.fromarray(frame)
-        frame = ImageTk.PhotoImage(image=frame)
-        self.rightVideo.img = frame
-        self.rightVideo.configure(image=frame)
 
 
 class NoteEditWindow(tk.Toplevel):
@@ -273,14 +292,12 @@ class NoteEditWindow(tk.Toplevel):
         self.discard_button.grid(row=2, column=1, pady=5)
 
 
-# TODO: show both video feeds with tabs
 class ViewClipWindow(tk.Toplevel):
     def __init__(self, parent, name):
         tk.Toplevel.__init__(self, parent)
         self.vidFrame = tk.Label(self, text='Viewing Clip')
         self.vidFrame.pack()
         self.video = camera.VideoPlayback(name)
-        self.delay = int(1000 / 30)
         self.show_frame()
 
     def show_frame(self):
@@ -290,7 +307,7 @@ class ViewClipWindow(tk.Toplevel):
             frame = ImageTk.PhotoImage(image=frame)
             self.vidFrame.img = frame
             self.vidFrame.configure(image=frame)
-            self.after(self.delay, self.show_frame)
+            self.after(self.video.refresh_period, self.show_frame)
         else:
             print('Video Done')
             self.destroy()

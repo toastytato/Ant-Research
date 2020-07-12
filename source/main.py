@@ -5,6 +5,9 @@ from source.models import *
 from source.views import *
 
 
+# handles the logic between the UI elements/actions with the data
+
+
 class MainController(tk.Frame):
     def __init__(self, master):
         tk.Frame.__init__(self, master)
@@ -13,12 +16,13 @@ class MainController(tk.Frame):
         bg_color = "SystemButtonFace"  # default color
         self.configure(background=bg_color)
 
-        ant_url = r'..\\data\\antvideo.mp4'
-        camera_source = 0
-        self.left_video = camera.VideoCapture(source=ant_url,
+        self.ant_url = r'..\\clips\\antvideo.mp4'
+        camera_source = 0   # webcam source
+        self.left_video = camera.VideoCapture(source=0,
                                               side='left',
-                                              speed=1)
-        self.right_video = camera.VideoCapture(source=camera_source,
+                                              speed=1,
+                                              flip=True)
+        self.right_video = camera.VideoCapture(source=1,
                                                side='right',
                                                flip=True)
         self.left_video.use_tracker = 'motion'
@@ -32,8 +36,18 @@ class MainController(tk.Frame):
         self.vidView.grid(row=0, column=0, sticky='nsew')
         self.vidView.configure(background=bg_color)
         self.vidView.recordButton.bind('<Button-1>', self.record_event)
-        self.vidView.leftVideo.bind('<Button-1>', self.on_left_video_click)
-        self.vidView.rightVideo.bind('<Button-1>', self.on_right_video_click)
+
+        # self.vidView.leftVideo.init_tracker_options(list(self.left_video.trackers.keys()))
+        # self.vidView.leftVideo.init_source_options(self.vidModel.video_sources)
+        # self.vidView.leftVideo.sel_tracker.trace('w', self.on_left_tracker_select)
+        # self.vidView.leftVideo.sel_source.trace('w', self.on_left_source_select)
+        self.vidView.leftVideo.video.bind('<Button-1>', self.on_left_video_click)
+
+        # self.vidView.rightVideo.init_tracker_options(list(self.right_video.trackers.keys()))
+        # self.vidView.rightVideo.init_source_options(self.vidModel.video_sources)
+        # self.vidView.rightVideo.sel_tracker.trace('w', self.on_right_tracker_select)
+        # self.vidView.rightVideo.sel_source.trace('w', self.on_right_source_select)
+        self.vidView.rightVideo.video.bind('<Button-1>', self.on_right_video_click)
 
         self.panelModel = SidePanelModel()
         self.panelModel.active_tab = 'Motion'
@@ -254,8 +268,31 @@ class MainController(tk.Frame):
     def on_left_video_click(self, event):
         self.left_video.cycle_overlay()
 
+    def on_left_tracker_select(self, *args):
+        tracker = self.vidView.leftVideo.sel_tracker.get()
+        self.left_video.use_tracker = tracker
+
+    def on_left_source_select(self, *args):
+        source = int(self.vidView.leftVideo.sel_source.get())
+        if source == 2:
+            self.left_video.change_source(self.ant_url)
+        else:
+            self.left_video.change_source(source)
+
     def on_right_video_click(self, event):
         self.right_video.cycle_overlay()
+
+    def on_right_tracker_select(self, *args):
+        tracker = self.vidView.rightVideo.sel_tracker.get()
+        self.right_video.use_tracker = tracker
+
+    def on_right_source_select(self, *args):
+        source = int(self.vidView.rightVideo.sel_source.get())
+        if source == 2:
+            self.right_video.change_source(self.ant_url)
+        else:
+            self.right_video.change_source(source)
+        self.refresh(self.right_video)
 
     def refresh(self, video):
         if self.vidModel.is_recording:
@@ -276,10 +313,10 @@ class MainController(tk.Frame):
         if video.update() is not None:
             frame = self.vidModel.resize_frame(video.get_frame())
             if video.side == 'left':
-                self.vidView.refresh_left(frame)
+                self.vidView.leftVideo.refresh(frame)
                 self.panelView.graphs['Angle'].increment_frames()
             elif video.side == 'right':
-                self.vidView.refresh_right(frame)
+                self.vidView.rightVideo.refresh(frame)
         self.master.after(video.refresh_period, self.refresh, video)
 
     def record_data(self):
