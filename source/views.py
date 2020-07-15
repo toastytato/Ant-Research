@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
 
-# In charge of the UI elements
+# In charge of the UI elements/Frontend
 
 
 class SidePanelView(tk.Frame):
@@ -242,7 +242,7 @@ class VideoPlayer(tk.Frame):
     def __init__(self, parent):
         tk.Frame.__init__(self, parent)
         self.video = tk.Label(self)
-        self.video.grid(row=0, column=0, columnspan=4)
+        self.video.grid(row=0, column=0, columnspan=6)
 
     def init_tracker_options(self, trackers, default):
         self.sel_tracker = tk.StringVar()
@@ -265,6 +265,15 @@ class VideoPlayer(tk.Frame):
         source_label = tk.Label(self, text='Source:')
         source_label.grid(row=1, column=0,
                           sticky='e')
+
+    def init_flip_checkbutton(self):
+        self.flip_state = tk.BooleanVar()
+        flip_label = tk.Label(self, text='Flip:')
+        flip_label.grid(row=1, column=4,
+                        sticky='e')
+        self.flip_button = tk.Checkbutton(self, variable=self.flip_state)
+        self.flip_button.grid(row=1, column=5,
+                              sticky='w')
 
     def reload_source_options(self, sources, e):
         try:

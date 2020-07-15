@@ -270,7 +270,7 @@ class VideoCapture:
 
         self.framerate = self.vid.get(cv2.CAP_PROP_FPS)
         if self.framerate == 0:
-            self.refresh_period = 1000
+            self.vid.release()
         else:
             self.refresh_period = int(1000 / self.framerate)
 
@@ -282,9 +282,6 @@ class VideoCapture:
             print('Video Done')
             # self.vid.set(cv2.CAP_PROP_POS_FRAMES, 0)
             return None
-
-        if self.flip:
-            frame = cv2.flip(frame, 1)
 
         self.frame['original'] = frame
 
@@ -302,7 +299,11 @@ class VideoCapture:
         return self.cur_tracker.has_lock
 
     def get_frame(self):
-        return cv2.cvtColor(self.cur_overlay, cv2.COLOR_BGR2RGB)
+        if self.flip:
+            return cv2.cvtColor(cv2.flip(self.cur_overlay, 1), cv2.COLOR_BGR2RGB)
+        else:
+            return cv2.cvtColor(self.cur_overlay, cv2.COLOR_BGR2RGB)
+
 
     def start_record(self, video_name):
         fourcc = cv2.VideoWriter_fourcc(*'XVID')

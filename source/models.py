@@ -9,7 +9,7 @@ import cv2
 # from source import data_handler
 
 
-# In charge of holding and manipulating the data behind the UI elements
+# In charge of holding and manipulating the data/backend behind the UI elements
 
 
 class SidePanelModel:

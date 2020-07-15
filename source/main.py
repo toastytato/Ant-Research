@@ -27,11 +27,9 @@ class MainController(tk.Frame):
                                         l_tracker='motion',
                                         r_tracker='none')
         self.left_video = camera.VideoCapture(source=self.vidModel.cur_left_source,
-                                              side='left',
-                                              flip=False)
+                                              side='left')
         self.right_video = camera.VideoCapture(source=self.vidModel.cur_right_source,
-                                               side='right',
-                                               flip=False)
+                                               side='right')
         self.left_video.use_tracker = self.vidModel.left_tracker
         self.right_video.use_tracker = self.vidModel.right_tracker
 
@@ -46,19 +44,23 @@ class MainController(tk.Frame):
                                                     default=self.vidModel.left_tracker)
         self.vidView.leftVideo.init_source_options(sources=self.vidModel.left_sources,
                                                    default=self.vidModel.cur_left_source)
+        self.vidView.leftVideo.init_flip_checkbutton()
         self.vidView.leftVideo.video.bind('<Button-1>', self.on_left_video_click)
-        # when the options menu updates the selected tracker variable
+        # when the options menu updates the selected variable, call the function
         self.vidView.leftVideo.sel_tracker.trace('w', self.on_left_tracker_select)
         self.vidView.leftVideo.sel_source.trace('w', self.on_left_source_select)
+        self.vidView.leftVideo.flip_button.bind('<Button-1>', self.on_left_flip_select)
 
         self.vidView.rightVideo.init_tracker_options(trackers=list(self.right_video.trackers.keys()),
                                                      default=self.vidModel.right_tracker)
         self.vidView.rightVideo.init_source_options(sources=self.vidModel.right_sources,
                                                     default=self.vidModel.cur_right_source)
+        self.vidView.rightVideo.init_flip_checkbutton()
         self.vidView.rightVideo.video.bind('<Button-1>', self.on_right_video_click)
-        # when the options menu updates the selected tracker variable
+        # when the options menu updates the selected variable, call the function
         self.vidView.rightVideo.sel_tracker.trace('w', self.on_right_tracker_select)
         self.vidView.rightVideo.sel_source.trace('w', self.on_right_source_select)
+        self.vidView.rightVideo.flip_button.bind('<Button-1>', self.on_right_flip_select)
 
         self.panelModel = SidePanelModel()
         self.panelModel.active_tab = 'Motion'
@@ -329,6 +331,14 @@ class MainController(tk.Frame):
         print('right click')
         if prev_framerate == 0 or self.right_video.framerate == 0:
             self.refresh(self.right_video)
+
+    def on_left_flip_select(self, event):
+        self.left_video.flip = not self.vidView.leftVideo.flip_state.get()
+        print(self.left_video.flip)
+
+
+    def on_right_flip_select(self, event):
+        self.right_video.flip = not self.vidView.rightVideo.flip_state.get()
 
     def refresh(self, video):
         if self.vidModel.is_recording:
