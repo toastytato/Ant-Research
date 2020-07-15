@@ -15,39 +15,50 @@ class MainController(tk.Frame):
         self.master.title("Ant tracking interface")
         bg_color = "SystemButtonFace"  # default color
         self.configure(background=bg_color)
-
         self.ant_url = r'..\\clips\\antvideo.mp4'
-        camera_source = 0   # webcam source
-        self.left_video = camera.VideoCapture(source=0,
-                                              side='left',
-                                              speed=1,
-                                              flip=True)
-        self.right_video = camera.VideoCapture(source=1,
-                                               side='right',
-                                               flip=True)
-        self.left_video.use_tracker = 'motion'
-        self.graph_refresh_period = self.left_video.refresh_period * 4
 
         self.data_log = data_handler.DataLog()
 
-        self.vidModel = VideoFrameModel()
+        # initializing the default states
+        # sources 0 and 1 are webcam ports
+        self.vidModel = VideoFrameModel(sources=[0, 1, 2, self.ant_url],
+                                        l_source=3,  # idx to the sources
+                                        r_source=0,
+                                        l_tracker='motion',
+                                        r_tracker='none')
+        self.left_video = camera.VideoCapture(source=self.vidModel.cur_left_source,
+                                              side='left',
+                                              flip=False)
+        self.right_video = camera.VideoCapture(source=self.vidModel.cur_right_source,
+                                               side='right',
+                                               flip=False)
+        self.left_video.use_tracker = self.vidModel.left_tracker
+        self.right_video.use_tracker = self.vidModel.right_tracker
+
+        # initializations for the UI elements and its associated models
         self.vidModel.init_video_dimensions(self.left_video.height, self.right_video.height)
         self.vidView = VideoFrameView(self)
         self.vidView.grid(row=0, column=0, sticky='nsew')
         self.vidView.configure(background=bg_color)
         self.vidView.recordButton.bind('<Button-1>', self.record_event)
 
-        # self.vidView.leftVideo.init_tracker_options(list(self.left_video.trackers.keys()))
-        # self.vidView.leftVideo.init_source_options(self.vidModel.video_sources)
-        # self.vidView.leftVideo.sel_tracker.trace('w', self.on_left_tracker_select)
-        # self.vidView.leftVideo.sel_source.trace('w', self.on_left_source_select)
+        self.vidView.leftVideo.init_tracker_options(trackers=list(self.left_video.trackers.keys()),
+                                                    default=self.vidModel.left_tracker)
+        self.vidView.leftVideo.init_source_options(sources=self.vidModel.left_sources,
+                                                   default=self.vidModel.cur_left_source)
         self.vidView.leftVideo.video.bind('<Button-1>', self.on_left_video_click)
+        # when the options menu updates the selected tracker variable
+        self.vidView.leftVideo.sel_tracker.trace('w', self.on_left_tracker_select)
+        self.vidView.leftVideo.sel_source.trace('w', self.on_left_source_select)
 
-        # self.vidView.rightVideo.init_tracker_options(list(self.right_video.trackers.keys()))
-        # self.vidView.rightVideo.init_source_options(self.vidModel.video_sources)
-        # self.vidView.rightVideo.sel_tracker.trace('w', self.on_right_tracker_select)
-        # self.vidView.rightVideo.sel_source.trace('w', self.on_right_source_select)
+        self.vidView.rightVideo.init_tracker_options(trackers=list(self.right_video.trackers.keys()),
+                                                     default=self.vidModel.right_tracker)
+        self.vidView.rightVideo.init_source_options(sources=self.vidModel.right_sources,
+                                                    default=self.vidModel.cur_right_source)
         self.vidView.rightVideo.video.bind('<Button-1>', self.on_right_video_click)
+        # when the options menu updates the selected tracker variable
+        self.vidView.rightVideo.sel_tracker.trace('w', self.on_right_tracker_select)
+        self.vidView.rightVideo.sel_source.trace('w', self.on_right_source_select)
 
         self.panelModel = SidePanelModel()
         self.panelModel.active_tab = 'Motion'
@@ -85,6 +96,7 @@ class MainController(tk.Frame):
         self.navView.excel_button.bind('<Button-1>', self.export_excel_event)
         self.navView.del_button.bind('<Button-1>', self.del_entry_event)
 
+        # pop-up windows
         self.details_editor = None
         self.clip_viewer = None
 
@@ -159,18 +171,21 @@ class MainController(tk.Frame):
         deleted = self.data_log.del_entry(self.navModel.sel_date, self.navModel.sel_entry)
         if deleted:  # deletion was successful
             dates = self.data_log.get_dates()
-            if len(dates) == 0:  # if every entry is deleted
+            # if every entry is deleted
+            if len(dates) == 0:
                 print('all empty')
                 self.navView.reload_dates([])  # put empty list into both tabs
                 self.navView.reload_entries([])
-            elif self.data_log.get_entries(self.navModel.sel_date) is None:  # if the last entry for date is deleted
+            # if the last entry for date is deleted
+            elif self.data_log.get_entries(self.navModel.sel_date) is None:
                 self.navView.reload_dates(dates)
                 self.navView.reload_entries([])
                 if self.navModel.sel_date_idx >= self.navView.date_tab.size():
                     self.navView.date_tab.set_selection('end')
                 else:  # if the deleted wasn't the last selection
                     self.navView.date_tab.set_selection(self.navModel.sel_date_idx)
-            else:  # if entries still exist
+            # if entries still exist
+            else:
                 self.navView.reload_entries(self.data_log.get_entries(self.navModel.sel_date))
                 print('size: ', self.navView.entry_tab.size())
                 print('idx: ', self.navModel.sel_entry_idx)
@@ -252,7 +267,7 @@ class MainController(tk.Frame):
                 if self.panelView.graph_nb.tab(self.panelView.graph_nb.select(), 'text') == name:
                     self.panelView.graphs[name].animate()
         self.record_data()
-        self.master.after(self.graph_refresh_period, self.animate_graphs)
+        self.master.after(self.left_video.refresh_period * 4, self.animate_graphs)
 
     def exit(self, event=None):
         self.panelModel.save_settings(self.panelView.slider_names,
@@ -269,29 +284,43 @@ class MainController(tk.Frame):
         self.left_video.cycle_overlay()
 
     def on_left_tracker_select(self, *args):
-        tracker = self.vidView.leftVideo.sel_tracker.get()
-        self.left_video.use_tracker = tracker
+        self.left_video.use_tracker = self.vidView.leftVideo.sel_tracker.get()
 
     def on_left_source_select(self, *args):
-        source = int(self.vidView.leftVideo.sel_source.get())
-        if source == 2:
-            self.left_video.change_source(self.ant_url)
+        try:
+            source = int(self.vidView.leftVideo.sel_source.get())
+        except ValueError:
+            source = self.vidView.leftVideo.sel_source.get()
+        if self.vidModel.cur_left_source != source:
+            self.vidModel.cur_left_source = source
         else:
-            self.left_video.change_source(source)
+            return
+        self.left_video.change_source(self.vidModel.cur_left_source)
+        # update the available sources on the other side to prevent both having the same one
+        self.vidView.rightVideo.reload_source_options(self.vidModel.get_sources('right'), 'r')
+        print('left click')
+        self.refresh(self.left_video)
 
     def on_right_video_click(self, event):
         self.right_video.cycle_overlay()
 
     def on_right_tracker_select(self, *args):
-        tracker = self.vidView.rightVideo.sel_tracker.get()
-        self.right_video.use_tracker = tracker
+        self.right_video.use_tracker = self.vidView.rightVideo.sel_tracker.get()
 
     def on_right_source_select(self, *args):
-        source = int(self.vidView.rightVideo.sel_source.get())
-        if source == 2:
-            self.right_video.change_source(self.ant_url)
+        try:
+            source = int(self.vidView.rightVideo.sel_source.get())
+        except ValueError:
+            source = self.vidView.rightVideo.sel_source.get()
+        if self.vidModel.cur_right_source != source:
+            self.vidModel.cur_right_source = source
+        # this function will get called multiple times without this
         else:
-            self.right_video.change_source(source)
+            return
+        self.right_video.change_source(self.vidModel.cur_right_source)
+        # update the available sources on the other side to prevent both having the same one
+        self.vidView.leftVideo.reload_source_options(self.vidModel.get_sources('left'), 'l')
+        print('right click')
         self.refresh(self.right_video)
 
     def refresh(self, video):
@@ -317,7 +346,12 @@ class MainController(tk.Frame):
                 self.panelView.graphs['Angle'].increment_frames()
             elif video.side == 'right':
                 self.vidView.rightVideo.refresh(frame)
-        self.master.after(video.refresh_period, self.refresh, video)
+
+        if video.framerate != 0:
+            self.master.after(video.refresh_period, self.refresh, video)
+            # print(video.side, 'fps:', video.framerate)
+        else:
+            print(video.side, 'video source has issues')
 
     def record_data(self):
         if self.vidModel.is_recording:

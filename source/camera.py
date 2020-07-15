@@ -262,25 +262,25 @@ class VideoCapture:
 
     def change_source(self, source):
         self.vid.release()
-        if isinstance(source, str):
-            self.vid = cv2.VideoCapture(source)
-        else:
-            self.vid = cv2.VideoCapture(source, cv2.CAP_DSHOW)
+        self.vid = cv2.VideoCapture(source)
+        # if isinstance(source, str):
+        #     self.vid = cv2.VideoCapture(source)
+        # else:
+        #     self.vid = cv2.VideoCapture(source, cv2.CAP_DSHOW)
 
         self.framerate = self.vid.get(cv2.CAP_PROP_FPS)
         if self.framerate == 0:
-            self.framerate = 24
-        print(self.framerate)
-        self.refresh_period = int(1000 / self.framerate)
+            self.refresh_period = 1000
+        else:
+            self.refresh_period = int(1000 / self.framerate)
 
     def update(self):
         if not self.vid.isOpened():
-            print('Could not open video')
             return None
         ret, frame = self.vid.read()
         if not ret:
             print('Video Done')
-            self.vid.set(cv2.CAP_PROP_POS_FRAMES, 0)
+            # self.vid.set(cv2.CAP_PROP_POS_FRAMES, 0)
             return None
 
         if self.flip:

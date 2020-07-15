@@ -66,12 +66,29 @@ class NavigationModel:
 
 
 class VideoFrameModel:
-    def __init__(self, source=0, tracker='none'):
+    def __init__(self, sources, l_source, r_source, l_tracker, r_tracker):
         self.is_recording = False
         self.height_cap = 720
-        self.video_sources = range(3)
-        self.default_source = source
-        self.default_tracker = tracker
+        self.all_sources = sources
+        self.cur_left_source = sources[l_source]
+        self.cur_right_source = sources[r_source]
+        self.left_sources = []
+        self.right_sources = []
+        self.get_sources('left')
+        self.get_sources('right')
+
+        self.left_tracker = l_tracker
+        self.right_tracker = r_tracker
+
+    def get_sources(self, side):
+        if side == 'left':
+            self.left_sources = self.all_sources.copy()
+            self.left_sources.remove(self.cur_right_source)
+            return self.left_sources
+        elif side == 'right':
+            self.right_sources = self.all_sources.copy()
+            self.right_sources.remove(self.cur_left_source)
+            return self.right_sources
 
     def init_video_dimensions(self, height1, height2):
         print(height1, height2)

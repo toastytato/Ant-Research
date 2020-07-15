@@ -227,9 +227,9 @@ class VideoFrameView(tk.Frame):
         tk.Frame.__init__(self, parent)
         self.parent = parent
 
-        self.leftVideo = VideoControl(self)
+        self.leftVideo = VideoPlayer(self)
         self.leftVideo.grid(row=0, column=0)
-        self.rightVideo = VideoControl(self)
+        self.rightVideo = VideoPlayer(self)
         self.rightVideo.grid(row=0, column=1)
 
         self.record_text = tk.StringVar()
@@ -238,16 +238,16 @@ class VideoFrameView(tk.Frame):
         self.recordButton.grid(row=1, columnspan=2)
 
 
-class VideoControl(tk.Frame):
+class VideoPlayer(tk.Frame):
     def __init__(self, parent):
         tk.Frame.__init__(self, parent)
         self.video = tk.Label(self)
         self.video.grid(row=0, column=0, columnspan=4)
 
-    def init_tracker_options(self, trackers):
+    def init_tracker_options(self, trackers, default):
         self.sel_tracker = tk.StringVar()
-        self.sel_tracker.set(trackers[0])
-        self.tracker_menu = ttk.OptionMenu(self, self.sel_tracker, trackers[0], *trackers)
+        self.sel_tracker.set(default)
+        self.tracker_menu = ttk.OptionMenu(self, self.sel_tracker, default, *trackers)
         self.tracker_menu.grid(row=1, column=3,
                                sticky='w')
 
@@ -255,10 +255,10 @@ class VideoControl(tk.Frame):
         tracker_label.grid(row=1, column=2,
                            sticky='e')
 
-    def init_source_options(self, sources):
+    def init_source_options(self, sources, default):
         self.sel_source = tk.StringVar()
-        self.sel_source.set(sources[0])
-        self.source_menu = ttk.OptionMenu(self, self.sel_source, sources[0], *sources)
+        self.sel_source.set(default)
+        self.source_menu = ttk.OptionMenu(self, self.sel_source, default, *sources)
         self.source_menu.grid(row=1, column=1,
                               sticky='w')
 
@@ -266,12 +266,20 @@ class VideoControl(tk.Frame):
         source_label.grid(row=1, column=0,
                           sticky='e')
 
+    def reload_source_options(self, sources, e):
+        try:
+            source = int(self.sel_source.get())
+        except ValueError:
+            source = self.sel_source.get()
+        print(e, 'elem', source)
+        print(e, 'idx', sources.index(source))
+        self.source_menu.set_menu(source, *sources)
+
     def refresh(self, frame):
         frame = Image.fromarray(frame)
         frame = ImageTk.PhotoImage(image=frame)
         self.video.img = frame
         self.video.configure(image=frame)
-
 
 
 class NoteEditWindow(tk.Toplevel):
