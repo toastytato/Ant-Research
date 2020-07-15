@@ -303,6 +303,8 @@ class NoteEditWindow(tk.Toplevel):
 class ViewClipWindow(tk.Toplevel):
     def __init__(self, parent, name):
         tk.Toplevel.__init__(self, parent)
+        self.title(name)
+        self.focus()
         self.vidFrame = tk.Label(self, text='Viewing Clip')
         self.vidFrame.pack()
         self.video = camera.VideoPlayback(name)

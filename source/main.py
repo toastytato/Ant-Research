@@ -15,15 +15,15 @@ class MainController(tk.Frame):
         self.master.title("Ant tracking interface")
         bg_color = "SystemButtonFace"  # default color
         self.configure(background=bg_color)
-        self.ant_url = r'..\\clips\\antvideo.mp4'
 
         self.data_log = data_handler.DataLog()
 
         # initializing the default states
-        # sources 0 and 1 are webcam ports
-        self.vidModel = VideoFrameModel(sources=[0, 1, 2, self.ant_url],
-                                        l_source=3,  # idx to the sources
-                                        r_source=0,
+        # sources 0 and 1 are webcam ports. 3 maybe. the last one is url for example video
+        # l_source and r_source can't be the same
+        self.vidModel = VideoFrameModel(sources=[0, 1, 2, r'..\\clips\\antvideo.mp4'],
+                                        l_source=0,  # idx to the sources
+                                        r_source=1,
                                         l_tracker='motion',
                                         r_tracker='none')
         self.left_video = camera.VideoCapture(source=self.vidModel.cur_left_source,
@@ -229,11 +229,12 @@ class MainController(tk.Frame):
             return
         print(self.panelModel.active_tab)
         if self.panelModel.active_tab == 'HSV':
-            self.left_video.use_tracker = 'hsv'
+            # self.left_video.use_tracker = 'hsv'
             self.left_video.trackers['hsv'].color_low = self.panelView.low_colors
             self.left_video.trackers['hsv'].color_high = self.panelView.high_colors  # pull values from sliders
         elif self.panelModel.active_tab == 'Motion':
-            self.left_video.use_tracker = 'motion'
+            pass
+            # self.left_video.use_tracker = 'motion'
 
     def hsv_sliders_press(self, event):
         slider_idx = self.panelView.hsv_sliders.index(event.widget)
@@ -283,8 +284,14 @@ class MainController(tk.Frame):
     def on_left_video_click(self, event):
         self.left_video.cycle_overlay()
 
+    def on_right_video_click(self, event):
+        self.right_video.cycle_overlay()
+
     def on_left_tracker_select(self, *args):
         self.left_video.use_tracker = self.vidView.leftVideo.sel_tracker.get()
+
+    def on_right_tracker_select(self, *args):
+        self.right_video.use_tracker = self.vidView.rightVideo.sel_tracker.get()
 
     def on_left_source_select(self, *args):
         try:
@@ -295,33 +302,33 @@ class MainController(tk.Frame):
             self.vidModel.cur_left_source = source
         else:
             return
+        prev_framerate = self.left_video.framerate
         self.left_video.change_source(self.vidModel.cur_left_source)
         # update the available sources on the other side to prevent both having the same one
         self.vidView.rightVideo.reload_source_options(self.vidModel.get_sources('right'), 'r')
         print('left click')
-        self.refresh(self.left_video)
-
-    def on_right_video_click(self, event):
-        self.right_video.cycle_overlay()
-
-    def on_right_tracker_select(self, *args):
-        self.right_video.use_tracker = self.vidView.rightVideo.sel_tracker.get()
+        print(self.left_video.framerate)
+        # prevent double framerate when changing between sources that have active framerates
+        if prev_framerate == 0 or self.left_video.framerate == 0:
+            self.refresh(self.left_video)
 
     def on_right_source_select(self, *args):
         try:
             source = int(self.vidView.rightVideo.sel_source.get())
         except ValueError:
             source = self.vidView.rightVideo.sel_source.get()
+
         if self.vidModel.cur_right_source != source:
             self.vidModel.cur_right_source = source
-        # this function will get called multiple times without this
         else:
             return
+        prev_framerate = self.right_video.framerate
         self.right_video.change_source(self.vidModel.cur_right_source)
         # update the available sources on the other side to prevent both having the same one
         self.vidView.leftVideo.reload_source_options(self.vidModel.get_sources('left'), 'l')
         print('right click')
-        self.refresh(self.right_video)
+        if prev_framerate == 0 or self.right_video.framerate == 0:
+            self.refresh(self.right_video)
 
     def refresh(self, video):
         if self.vidModel.is_recording:
@@ -373,7 +380,7 @@ class MainController(tk.Frame):
             self.left_video.start_record(self.left_video.generate_vid_name(self.data_log))
             self.right_video.start_record(self.right_video.generate_vid_name(self.data_log))
             print('is recording')
-        # toggle recording with button
+        # toggle recording state with button
         self.vidModel.is_recording = not self.vidModel.is_recording
 
 

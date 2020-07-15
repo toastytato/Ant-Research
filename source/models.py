@@ -80,6 +80,7 @@ class VideoFrameModel:
         self.left_tracker = l_tracker
         self.right_tracker = r_tracker
 
+    # makes sure either side won't have the source currently active on the other side
     def get_sources(self, side):
         if side == 'left':
             self.left_sources = self.all_sources.copy()
